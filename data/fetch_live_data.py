@@ -39,6 +39,10 @@ AGMARKNET_RESOURCE = "9ef84268-d588-465a-a308-a864a43d0070"
 AGMARKNET_URL = f"https://api.data.gov.in/resource/{AGMARKNET_RESOURCE}"
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
+# data.gov.in's WAF silently drops the default python-requests User-Agent
+# (times out / 502s); any other UA is served instantly.
+HEADERS = {"User-Agent": "kisan-copilot/1.0"}
+
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
@@ -73,6 +77,7 @@ def fetch_weather():
                 "forecast_days": 1,
                 "timezone": "Asia/Kolkata",
             },
+            headers=HEADERS,
             timeout=30,
         )
         resp.raise_for_status()
@@ -121,13 +126,20 @@ def fetch_mandi_prices(api_key):
                         "offset": offset,
                         "filters[state.keyword]": "Telangana",
                     },
+                    headers=HEADERS,
                     timeout=90,
                 )
                 resp.raise_for_status()
                 break
-            except requests.RequestException:
+            except requests.RequestException as e:
                 if attempt == 2:
-                    raise
+                    # Don't re-raise raw: the exception text embeds the
+                    # request URL, which contains the api key.
+                    status = getattr(getattr(e, "response", None), "status_code", "n/a")
+                    raise RuntimeError(
+                        f"data.gov.in request failed after 3 attempts: "
+                        f"{type(e).__name__} (http {status})"
+                    ) from None
                 time.sleep(5)
         records = resp.json().get("records", [])
         for r in records:

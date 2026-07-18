@@ -53,6 +53,10 @@ DISTRICTS = {
 }
 IST = timezone(timedelta(hours=5, minutes=30))
 
+# data.gov.in's WAF silently drops the default python-requests User-Agent
+# (times out / 502s); any other UA is served instantly.
+HEADERS = {"User-Agent": "kisan-copilot/1.0"}
+
 WEATHER_MERGE = """
 MERGE INTO AGRI.PUBLIC.WEATHER t
 USING AGRI.PUBLIC.STG_WEATHER s
@@ -91,6 +95,7 @@ def fetch_weather():
                 "hourly": "relative_humidity_2m",
                 "past_days": 10, "forecast_days": 1, "timezone": "Asia/Kolkata",
             },
+            headers=HEADERS,
             timeout=30,
         )
         resp.raise_for_status()
@@ -126,6 +131,7 @@ def fetch_mandi(api_key):
                         "limit": limit, "offset": offset,
                         "filters[state.keyword]": "Telangana",
                     },
+                    headers=HEADERS,
                     timeout=90,
                 )
                 resp.raise_for_status()
@@ -151,6 +157,15 @@ def fetch_mandi(api_key):
         offset += limit
 
 
+def fetch_mandi_safe(api_key):
+    """Never leak the api key (it's in the URL) via exception text."""
+    try:
+        return fetch_mandi(api_key), None
+    except requests.RequestException as e:
+        status = getattr(getattr(e, "response", None), "status_code", "n/a")
+        return None, f"{type(e).__name__} (http {status})"
+
+
 def merge(session, rows, schema, stage_name, merge_sql):
     # Owner's-rights procs can't create TEMP tables; overwrite a small
     # permanent staging table instead (also handy for debugging runs).
@@ -174,8 +189,13 @@ def main(session):
 
     api_key = _snowflake.get_generic_secret_string("data_gov_key")
     if api_key and api_key != "PENDING":
-        mandi = fetch_mandi(api_key)
-        if mandi:
+        # data.gov.in often rejects foreign cloud IPs (Snowflake egress) with
+        # 502/timeouts; a mandi failure must not abort the weather load. The
+        # local cron run of fetch_live_data.py is the reliable mandi path.
+        mandi, err = fetch_mandi_safe(api_key)
+        if err:
+            parts.append(f"mandi: FAILED after retries: {err}")
+        elif mandi:
             ins, upd = merge(
                 session, mandi,
                 ["COMMODITY", "VARIETY", "STATE", "DISTRICT", "MARKET",

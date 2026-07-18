@@ -68,6 +68,8 @@ kisan-copilot/
 7. **Demo + submission** — record a 3–4 min video showing the voice moment AND CoCo doing real SQL + Cortex Search; write the submission emphasizing CoCo.
 
 ## Guardrails
+- **Live Agmarknet naming differs from seed data:** commodities come as e.g. `Paddy(Common)`, `Paddy(Dhan)(Basmati)`; markets are real APMC names (`Sattupally APMC`), districts beyond the 4 pilot ones appear. The `crop_advisory` skill must match fuzzily (ILIKE '%paddy%' etc.), never by exact string.
+- **data.gov.in blocks the default python-requests User-Agent** (silent timeout/502). Always send a custom UA header — already handled in both loaders; keep it if writing new fetch code.
 - Prices + weather are **live (daily)**; agronomy knowledge is a **curated corpus** (doesn't change hourly) — don't try to make fertilizer advice "live."
 - Keep a seeded-data fallback for the recorded demo in case live conditions don't tell a clear story that day.
 - Always prefer Snowflake `MERGE` for idempotent loads.
