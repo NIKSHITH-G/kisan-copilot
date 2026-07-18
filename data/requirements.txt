@@ -1,0 +1,2 @@
+requests>=2.31
+snowflake-connector-python>=3.12

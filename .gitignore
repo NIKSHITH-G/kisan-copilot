@@ -1,0 +1,17 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS / editor
+.DS_Store
+
+# Demo media (large binaries)
+demo/*.wav
+demo/*.mp3
+demo/*.mp4

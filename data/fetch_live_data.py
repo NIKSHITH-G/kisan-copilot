@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+"""Load LIVE Telangana weather + mandi prices into Snowflake.
+
+Sources:
+  - Weather: Open-Meteo (no API key), past 10 days + today, per district.
+  - Mandi prices: data.gov.in Agmarknet daily feed
+    (resource 9ef84268-d588-465a-a308-a864a43d0070, needs DATA_GOV_KEY).
+
+Idempotent: rows land via MERGE keyed on the natural key, so re-running
+(daily cron/Task) never duplicates. The Agmarknet feed only carries the
+latest day's snapshot, so daily runs accumulate history in Snowflake.
+
+Usage:
+  python data/fetch_live_data.py            # weather + mandi -> Snowflake
+  python data/fetch_live_data.py --dry-run  # fetch + summarize, no Snowflake
+  python data/fetch_live_data.py --weather-only | --mandi-only
+"""
+
+import argparse
+import os
+import sys
+import time
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+import requests
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Telangana pilot districts (CLAUDE.md scope) with coordinates for Open-Meteo.
+DISTRICTS = {
+    "Warangal": (17.978, 79.594),
+    "Khammam": (17.247, 80.151),
+    "Karimnagar": (18.438, 79.128),
+    "Nizamabad": (18.673, 78.100),
+}
+
+AGMARKNET_RESOURCE = "9ef84268-d588-465a-a308-a864a43d0070"
+AGMARKNET_URL = f"https://api.data.gov.in/resource/{AGMARKNET_RESOURCE}"
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def load_env():
+    """Minimal .env loader so we don't hard-depend on python-dotenv."""
+    env_file = REPO_ROOT / ".env"
+    if not env_file.exists():
+        return
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip().strip("'\"")
+        if value and key not in os.environ:
+            os.environ[key] = value
+
+
+def fetch_weather():
+    """Return rows (district, date, temp_max, temp_min, rainfall_mm, humidity)."""
+    today = datetime.now(IST).date()
+    rows = []
+    for district, (lat, lon) in DISTRICTS.items():
+        resp = requests.get(
+            OPEN_METEO_URL,
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum",
+                "hourly": "relative_humidity_2m",
+                "past_days": 10,
+                "forecast_days": 1,
+                "timezone": "Asia/Kolkata",
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Average hourly humidity into a per-day mean.
+        humidity_by_day = {}
+        for ts, rh in zip(data["hourly"]["time"], data["hourly"]["relative_humidity_2m"]):
+            if rh is None:
+                continue
+            humidity_by_day.setdefault(ts[:10], []).append(rh)
+
+        daily = data["daily"]
+        for i, day in enumerate(daily["time"]):
+            if date.fromisoformat(day) > today:  # skip forecast rows
+                continue
+            rh_vals = humidity_by_day.get(day)
+            rows.append((
+                district,
+                day,
+                daily["temperature_2m_max"][i],
+                daily["temperature_2m_min"][i],
+                daily["precipitation_sum"][i],
+                round(sum(rh_vals) / len(rh_vals), 1) if rh_vals else None,
+            ))
+    return rows
+
+
+def fetch_mandi_prices(api_key):
+    """Return rows (commodity, variety, state, district, market, min, max, modal, arrival_date).
+
+    Pulls every Telangana record in today's Agmarknet snapshot (all districts,
+    all commodities — scope filtering happens at query time, not load time).
+    """
+    rows, offset, limit = [], 0, 500
+    while True:
+        # data.gov.in is flaky under load — retry transient failures.
+        for attempt in range(3):
+            try:
+                resp = requests.get(
+                    AGMARKNET_URL,
+                    params={
+                        "api-key": api_key,
+                        "format": "json",
+                        "limit": limit,
+                        "offset": offset,
+                        "filters[state.keyword]": "Telangana",
+                    },
+                    timeout=90,
+                )
+                resp.raise_for_status()
+                break
+            except requests.RequestException:
+                if attempt == 2:
+                    raise
+                time.sleep(5)
+        records = resp.json().get("records", [])
+        for r in records:
+            try:
+                arrival = datetime.strptime(r["arrival_date"], "%d/%m/%Y").date().isoformat()
+                rows.append((
+                    r["commodity"].strip(),
+                    (r.get("variety") or "Other").strip(),
+                    r["state"].strip(),
+                    r["district"].strip(),
+                    r["market"].strip(),
+                    float(r["min_price"]),
+                    float(r["max_price"]),
+                    float(r["modal_price"]),
+                    arrival,
+                ))
+            except (KeyError, ValueError, TypeError):
+                continue  # skip malformed records rather than fail the load
+        if len(records) < limit:
+            return rows
+        offset += limit
+
+
+def connect_snowflake():
+    import snowflake.connector
+
+    conn_name = os.environ.get("SNOWFLAKE_CONNECTION_NAME")
+    if conn_name:
+        conn = snowflake.connector.connect(connection_name=conn_name)
+    else:
+        conn = snowflake.connector.connect(
+            account=os.environ["SF_ACCOUNT"],
+            user=os.environ["SF_USER"],
+            password=os.environ["SF_PASSWORD"],
+        )
+    cur = conn.cursor()
+    cur.execute("USE WAREHOUSE KISAN_WH")
+    cur.execute("USE SCHEMA AGRI.PUBLIC")
+    return conn
+
+
+def merge_rows(conn, temp_ddl, insert_sql, merge_sql, rows, label):
+    if not rows:
+        print(f"  {label}: nothing to load")
+        return
+    cur = conn.cursor()
+    cur.execute(temp_ddl)
+    cur.executemany(insert_sql, rows)
+    cur.execute(merge_sql)
+    inserted, updated = cur.fetchone()[:2]
+    print(f"  {label}: {len(rows)} fetched -> {inserted} inserted, {updated} updated")
+
+
+WEATHER_MERGE = """
+MERGE INTO AGRI.PUBLIC.WEATHER t
+USING TMP_WEATHER s
+  ON t.district = s.district AND t.date = s.date
+WHEN MATCHED THEN UPDATE SET
+  t.temp_max = s.temp_max, t.temp_min = s.temp_min,
+  t.rainfall_mm = s.rainfall_mm, t.humidity = s.humidity
+WHEN NOT MATCHED THEN INSERT (district, date, temp_max, temp_min, rainfall_mm, humidity)
+  VALUES (s.district, s.date, s.temp_max, s.temp_min, s.rainfall_mm, s.humidity)
+"""
+
+MANDI_MERGE = """
+MERGE INTO AGRI.PUBLIC.MANDI_PRICES t
+USING TMP_MANDI s
+  ON t.commodity = s.commodity AND t.variety = s.variety AND t.state = s.state
+ AND t.district = s.district AND t.market = s.market AND t.arrival_date = s.arrival_date
+WHEN MATCHED THEN UPDATE SET
+  t.min_price = s.min_price, t.max_price = s.max_price, t.modal_price = s.modal_price
+WHEN NOT MATCHED THEN INSERT
+  (commodity, variety, state, district, market, min_price, max_price, modal_price, arrival_date)
+  VALUES (s.commodity, s.variety, s.state, s.district, s.market,
+          s.min_price, s.max_price, s.modal_price, s.arrival_date)
+"""
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dry-run", action="store_true", help="fetch only, no Snowflake")
+    parser.add_argument("--weather-only", action="store_true")
+    parser.add_argument("--mandi-only", action="store_true")
+    args = parser.parse_args()
+    load_env()
+
+    weather_rows, mandi_rows = [], []
+
+    if not args.mandi_only:
+        print("Fetching weather (Open-Meteo, past 10 days, 4 districts)...")
+        weather_rows = fetch_weather()
+        print(f"  {len(weather_rows)} weather rows, "
+              f"dates {min(r[1] for r in weather_rows)} .. {max(r[1] for r in weather_rows)}")
+
+    if not args.weather_only:
+        api_key = os.environ.get("DATA_GOV_KEY")
+        if not api_key:
+            print("Skipping mandi prices: DATA_GOV_KEY not set in .env", file=sys.stderr)
+        else:
+            print("Fetching mandi prices (data.gov.in Agmarknet, Telangana)...")
+            mandi_rows = fetch_mandi_prices(api_key)
+            dates = sorted({r[8] for r in mandi_rows})
+            print(f"  {len(mandi_rows)} price rows, arrival dates: {dates or 'none'}")
+
+    if args.dry_run:
+        for r in weather_rows[:3]:
+            print("  sample weather:", r)
+        for r in mandi_rows[:3]:
+            print("  sample mandi:", r)
+        print("Dry run — not writing to Snowflake.")
+        return
+
+    print("Connecting to Snowflake...")
+    conn = connect_snowflake()
+    try:
+        if weather_rows:
+            merge_rows(
+                conn,
+                "CREATE TEMP TABLE TMP_WEATHER LIKE AGRI.PUBLIC.WEATHER",
+                "INSERT INTO TMP_WEATHER VALUES (%s, %s, %s, %s, %s, %s)",
+                WEATHER_MERGE, weather_rows, "WEATHER",
+            )
+        if mandi_rows:
+            merge_rows(
+                conn,
+                "CREATE TEMP TABLE TMP_MANDI LIKE AGRI.PUBLIC.MANDI_PRICES",
+                "INSERT INTO TMP_MANDI VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                MANDI_MERGE, mandi_rows, "MANDI_PRICES",
+            )
+    finally:
+        conn.close()
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()
