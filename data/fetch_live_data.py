@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Load LIVE Telangana weather + mandi prices into Snowflake.
+"""Load LIVE weather + ALL-INDIA mandi prices into Snowflake.
 
 Sources:
-  - Weather: Open-Meteo (no API key), past 10 days + today, per district.
-  - Mandi prices: data.gov.in Agmarknet daily feed
+  - Weather: Open-Meteo (no API key), past 10 days + today, per pilot district
+    (on-demand weather for any other district is a Snowflake proc,
+    GET_DISTRICT_WEATHER — see data/setup_on_demand_weather.sql).
+  - Mandi prices: data.gov.in Agmarknet daily feed, full national snapshot
     (resource 9ef84268-d588-465a-a308-a864a43d0070, needs DATA_GOV_KEY).
 
 Idempotent: rows land via MERGE keyed on the natural key, so re-running
@@ -109,10 +111,12 @@ def fetch_weather():
 def fetch_mandi_prices(api_key):
     """Return rows (commodity, variety, state, district, market, min, max, modal, arrival_date).
 
-    Pulls every Telangana record in today's Agmarknet snapshot (all districts,
-    all commodities — scope filtering happens at query time, not load time).
+    Pulls the FULL national Agmarknet snapshot (all states, all commodities —
+    scope filtering happens at query time, not load time). Rows are deduped on
+    the merge key because the feed splits records by `grade`, which we don't
+    store; duplicate source keys would make the Snowflake MERGE error out.
     """
-    rows, offset, limit = [], 0, 500
+    seen, rows, offset, limit = set(), [], 0, 1000
     while True:
         # data.gov.in is flaky under load — retry transient failures.
         for attempt in range(3):
@@ -124,7 +128,6 @@ def fetch_mandi_prices(api_key):
                         "format": "json",
                         "limit": limit,
                         "offset": offset,
-                        "filters[state.keyword]": "Telangana",
                     },
                     headers=HEADERS,
                     timeout=90,
@@ -145,7 +148,7 @@ def fetch_mandi_prices(api_key):
         for r in records:
             try:
                 arrival = datetime.strptime(r["arrival_date"], "%d/%m/%Y").date().isoformat()
-                rows.append((
+                row = (
                     r["commodity"].strip(),
                     (r.get("variety") or "Other").strip(),
                     r["state"].strip(),
@@ -155,9 +158,13 @@ def fetch_mandi_prices(api_key):
                     float(r["max_price"]),
                     float(r["modal_price"]),
                     arrival,
-                ))
+                )
             except (KeyError, ValueError, TypeError):
                 continue  # skip malformed records rather than fail the load
+            key = (row[0], row[1], row[2], row[3], row[4], row[8])
+            if key not in seen:  # first grade listed wins
+                seen.add(key)
+                rows.append(row)
         if len(records) < limit:
             return rows
         offset += limit
@@ -239,10 +246,12 @@ def main():
         if not api_key:
             print("Skipping mandi prices: DATA_GOV_KEY not set in .env", file=sys.stderr)
         else:
-            print("Fetching mandi prices (data.gov.in Agmarknet, Telangana)...")
+            print("Fetching mandi prices (data.gov.in Agmarknet, all India)...")
             mandi_rows = fetch_mandi_prices(api_key)
             dates = sorted({r[8] for r in mandi_rows})
-            print(f"  {len(mandi_rows)} price rows, arrival dates: {dates or 'none'}")
+            states = len({r[2] for r in mandi_rows})
+            print(f"  {len(mandi_rows)} price rows across {states} states, "
+                  f"arrival dates: {dates or 'none'}")
 
     if args.dry_run:
         for r in weather_rows[:3]:

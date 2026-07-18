@@ -119,7 +119,10 @@ def fetch_weather():
 
 
 def fetch_mandi(api_key):
-    rows, offset, limit = [], 0, 500
+    # Full national snapshot, deduped on the merge key: the feed splits
+    # records by `grade`, which we don't store; duplicate source keys would
+    # make the MERGE error out ("duplicate row detected").
+    seen, rows, offset, limit = set(), [], 0, 1000
     while True:
         # data.gov.in is flaky under load — retry transient failures.
         for attempt in range(3):
@@ -129,7 +132,6 @@ def fetch_mandi(api_key):
                     params={
                         "api-key": api_key, "format": "json",
                         "limit": limit, "offset": offset,
-                        "filters[state.keyword]": "Telangana",
                     },
                     headers=HEADERS,
                     timeout=90,
@@ -144,14 +146,18 @@ def fetch_mandi(api_key):
         for r in records:
             try:
                 arrival = datetime.strptime(r["arrival_date"], "%d/%m/%Y").date().isoformat()
-                rows.append((
+                row = (
                     r["commodity"].strip(), (r.get("variety") or "Other").strip(),
                     r["state"].strip(), r["district"].strip(), r["market"].strip(),
                     float(r["min_price"]), float(r["max_price"]), float(r["modal_price"]),
                     arrival,
-                ))
+                )
             except (KeyError, ValueError, TypeError):
                 continue
+            key = (row[0], row[1], row[2], row[3], row[4], row[8])
+            if key not in seen:  # first grade listed wins
+                seen.add(key)
+                rows.append(row)
         if len(records) < limit:
             return rows
         offset += limit
@@ -189,9 +195,7 @@ def main(session):
 
     api_key = _snowflake.get_generic_secret_string("data_gov_key")
     if api_key and api_key != "PENDING":
-        # data.gov.in often rejects foreign cloud IPs (Snowflake egress) with
-        # 502/timeouts; a mandi failure must not abort the weather load. The
-        # local cron run of fetch_live_data.py is the reliable mandi path.
+        # A mandi failure must not abort the weather load.
         mandi, err = fetch_mandi_safe(api_key)
         if err:
             parts.append(f"mandi: FAILED after retries: {err}")
@@ -202,9 +206,11 @@ def main(session):
                  "MIN_PRICE", "MAX_PRICE", "MODAL_PRICE", "ARRIVAL_DATE"],
                 "AGRI.PUBLIC.STG_MANDI", MANDI_MERGE,
             )
-            parts.append(f"mandi: {len(mandi)} fetched, {ins} inserted, {upd} updated")
+            states = len({m[2] for m in mandi})
+            parts.append(f"mandi: {len(mandi)} rows across {states} states, "
+                         f"{ins} inserted, {upd} updated")
         else:
-            parts.append("mandi: feed returned 0 Telangana rows")
+            parts.append("mandi: feed returned 0 rows")
     else:
         parts.append("mandi: SKIPPED (secret DATA_GOV_KEY still PENDING)")
 
