@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""Deploy data/setup_daily_refresh.sql to Snowflake statement by statement."""
+"""Deploy a setup SQL file to Snowflake statement by statement.
+
+Usage: deploy_daily_refresh.py [path/to/file.sql]   (default: setup_daily_refresh.sql)
+"""
 
 import os
+import sys
 from pathlib import Path
 
 import snowflake.connector
@@ -11,7 +15,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def main():
-    sql_file = REPO_ROOT / "data" / "setup_daily_refresh.sql"
+    sql_file = (Path(sys.argv[1]) if len(sys.argv) > 1
+                else REPO_ROOT / "data" / "setup_daily_refresh.sql")
     conn = snowflake.connector.connect(
         connection_name=os.environ.get("SNOWFLAKE_CONNECTION_NAME", "HE20264")
     )

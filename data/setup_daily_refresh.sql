@@ -17,7 +17,7 @@ USE SCHEMA AGRI.PUBLIC;
 CREATE NETWORK RULE IF NOT EXISTS AGRI.PUBLIC.AGRI_APIS_NETWORK_RULE
   MODE = EGRESS
   TYPE = HOST_PORT
-  VALUE_LIST = ('api.open-meteo.com', 'api.data.gov.in');
+  VALUE_LIST = ('api.open-meteo.com', 'geocoding-api.open-meteo.com', 'api.data.gov.in');
 
 CREATE SECRET IF NOT EXISTS AGRI.PUBLIC.DATA_GOV_KEY
   TYPE = GENERIC_STRING
