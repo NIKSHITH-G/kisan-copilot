@@ -25,9 +25,11 @@ A **voice, local-language crop-advisory copilot** for Indian farmers, for the **
 - **CoCo CLI** (`cortex`) installed and connected (SQL + Agent connection `HE20264`).
 - **Custom CoCo skill `crop_advisory`** — being created; it queries the 3 tables and returns exactly three one-sentence recommendations (irrigation / sell-or-hold / pest watch) in the farmer's language + English translation. Verify it exists and works.
 - **Live data loader:** `data/fetch_live_data.py` — pulls LIVE weather (Open-Meteo, no key) + LIVE mandi prices (data.gov.in Agmarknet feed, resource `9ef84268-d588-465a-a308-a864a43d0070`) and MERGEs into Snowflake. Idempotent (safe to re-run daily). VERIFIED 2026-07-18: live weather loaded for all 4 districts.
-- **Daily auto-refresh (Snowflake-native, LIVE):** `data/setup_daily_refresh.sql` (deploy via `data/deploy_daily_refresh.py`) — proc `AGRI.PUBLIC.REFRESH_LIVE_DATA()` fetches both APIs *from inside Snowflake* (external access integration `AGRI_APIS_INTEGRATION`), task `DAILY_REFRESH_TASK` runs it daily 18:30 IST. data.gov.in key lives in Snowflake secret `AGRI.PUBLIC.DATA_GOV_KEY` (set to `PENDING` until real key added via `ALTER SECRET ... SET SECRET_STRING`); mandi load auto-skips until then.
-- **Snowflake auth:** connection `HE20264` in `~/.snowflake/connections.toml` uses OAuth (account locator `bm13081.ap-southeast-2`), reused by Python via `connection_name="HE20264"`. No SF_PASSWORD needed locally.
-- Scope: **Telangana**, districts Warangal/Khammam/Karimnagar/Nizamabad; generalize to any crop.
+- **Daily auto-refresh (Snowflake-native, LIVE, ALL-INDIA):** `data/setup_daily_refresh.sql` (deploy via `data/deploy_daily_refresh.py [file.sql]`) — proc `AGRI.PUBLIC.REFRESH_LIVE_DATA()` fetches both APIs *from inside Snowflake* (external access integration `AGRI_APIS_INTEGRATION`), task `DAILY_REFRESH_TASK` runs it daily 18:30 IST. Mandi load is the FULL national Agmarknet snapshot (paginated 1000/page, deduped on merge key because feed splits by grade). data.gov.in key lives in Snowflake secret `AGRI.PUBLIC.DATA_GOV_KEY`. VERIFIED 2026-07-18: 6.5k+ rows, 18 states, 107 commodities; national run ~29s on X-Small.
+- **On-demand weather for ANY district (LIVE):** `data/setup_on_demand_weather.sql` — proc `AGRI.PUBLIC.GET_DISTRICT_WEATHER('<district>')` geocodes via Open-Meteo (cache table `DISTRICT_GEO`), merges past-10-day observations into `WEATHER`, returns JSON with today + 7-day forecast. The 4 pilot districts (Warangal/Khammam/Karimnagar/Nizamabad) stay pre-loaded daily as fast path/demo fallback. VERIFIED 2026-07-18 with Anantapur (AP).
+- **Agronomy corpus + Cortex Search (DONE 2026-07-18):** `data/setup_advisory_corpus.sql` — `AGRI.PUBLIC.ADVISORY_CHUNKS` (11 crops × 5 topics: cotton, paddy, chilli, maize, onion, tomato, potato, groundnut, red gram, soybean, wheat; topics sowing_seeds/fertilizer/irrigation/pests_diseases/harvest_market; dosages indicative, source-labeled) + Cortex Search service `AGRI.PUBLIC.ADVISORY_SEARCH` (ON content, ATTRIBUTES crop/topic/region, TARGET_LAG 1h). Retrieval verified. NOTE: earlier claims that this existed pre-2026-07-18 were wrong — always verify Snowflake objects exist before building on them.
+- **Snowflake auth:** connection `HE20264` in `~/.snowflake/connections.toml` uses OAuth (account locator `bm13081.ap-southeast-2`), reused by Python via `connection_name="HE20264"`. No SF_PASSWORD needed locally. Quirk: first connect after token expiry fails with "Connection is closed" — just retry once.
+- Scope: **ALL-INDIA** — prices national (paginated daily snapshot), weather on-demand via geocoding for any district; demo story stays focused on one Telangana farmer.
 
 ## Chosen stack
 - **Data + reasoning:** Snowflake CoCo CLI + Cortex Search.
@@ -59,8 +61,8 @@ kisan-copilot/
 ```
 
 ## Remaining phases (build in this order — one working flow first)
-1. **Live data pipeline** — confirm `fetch_live_data.py` loads real Telangana prices + weather; set up a **daily auto-refresh** (Snowflake Task preferred, or cron).
-2. **Agronomy knowledge base** — create `AGRI.PUBLIC.ADVISORY_CHUNKS` and a **Cortex Search service** over fertilizer schedules, seed/sowing timing, and pest/disease guidance for major crops (source: ICAR "Package of Practices", KVK advisories, KCC Q&A). This unlocks "what fertilizer / when to buy seeds" for ANY crop.
+1. ~~**Live data pipeline**~~ DONE 2026-07-18 (national, Snowflake-native daily task).
+2. ~~**Agronomy knowledge base**~~ DONE 2026-07-18 (`ADVISORY_CHUNKS` + `ADVISORY_SEARCH`, 11 crops).
 3. **Generalize `crop_advisory`** — take (district, crop, question); use Cortex Search for agronomy answers; still return short, spoken-friendly advice in the farmer's language.
 4. **Backend API** — FastAPI endpoint `/ask`: audio in → Sarvam STT → invoke the CoCo/Snowflake reasoning → Sarvam TTS → audio out. Keep the farmer's language end-to-end.
 5. **Action** — send the advisory via WhatsApp/SMS (Twilio); expose as a CoCo MCP tool if possible.
