@@ -3,3 +3,4 @@ uvicorn>=0.30
 requests>=2.31
 snowflake-connector-python[secure-local-storage]>=3.12
 python-multipart>=0.0.9
+mcp>=1.2
