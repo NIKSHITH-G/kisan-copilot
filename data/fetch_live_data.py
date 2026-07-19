@@ -175,9 +175,17 @@ def fetch_mandi_prices(api_key):
 def connect_snowflake():
     import snowflake.connector
 
-    conn_name = os.environ.get("SNOWFLAKE_CONNECTION_NAME")
-    if conn_name:
-        conn = snowflake.connector.connect(connection_name=conn_name)
+    key_path = os.environ.get("SF_PRIVATE_KEY_PATH")
+    if key_path and (REPO_ROOT / key_path).exists():
+        # Key-pair: no browser, no token expiry — reliable for cron/CI.
+        conn = snowflake.connector.connect(
+            account=os.environ.get("SF_ACCOUNT", "bm13081.ap-southeast-2"),
+            user=os.environ.get("SF_USER", "NIKKY001"),
+            private_key_file=str(REPO_ROOT / key_path),
+        )
+    elif os.environ.get("SNOWFLAKE_CONNECTION_NAME"):
+        conn = snowflake.connector.connect(
+            connection_name=os.environ["SNOWFLAKE_CONNECTION_NAME"])
     else:
         conn = snowflake.connector.connect(
             account=os.environ["SF_ACCOUNT"],
