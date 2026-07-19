@@ -65,7 +65,7 @@ kisan-copilot/
 ## Remaining phases (build in this order — one working flow first)
 1. ~~**Live data pipeline**~~ DONE 2026-07-18 (national, Snowflake-native daily task).
 2. ~~**Agronomy knowledge base**~~ DONE 2026-07-18 (`ADVISORY_CHUNKS` + `ADVISORY_SEARCH`, 11 crops).
-3. **Generalize `crop_advisory`** — take (district, crop, question); use Cortex Search for agronomy answers; still return short, spoken-friendly advice in the farmer's language.
+3. ~~**Generalize `crop_advisory`**~~ DONE + VERIFIED 2026-07-19: three interactive `cortex` tests passed (Telugu/cotton/Warangal with live weather + hold advice; Hindi/wheat/Karnal with off-season + no-local-data handling; apple/Warangal empty-price rule verbatim, no invented price). `AGRI.PUBLIC.MSP` reference table added (`data/setup_msp.sql`, 9 MSP crops, indicative) after the agent once quoted a stale MSP from memory — skill hard rule 5 now forbids non-table MSP figures.
 4. **Backend API** — FastAPI endpoint `/ask`: audio in → Sarvam STT → invoke the CoCo/Snowflake reasoning → Sarvam TTS → audio out. Keep the farmer's language end-to-end.
 5. **Action** — send the advisory via WhatsApp/SMS (Twilio); expose as a CoCo MCP tool if possible.
 6. **Frontend** — WhatsApp voice bot (preferred) or a simple web PWA with a mic button.

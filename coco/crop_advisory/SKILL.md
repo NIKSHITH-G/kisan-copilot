@@ -22,6 +22,9 @@ missing, say so plainly.
    REPLACE, DROP, INSERT or DELETE.
 4. **No EVIDENCE block, no answer.** The EVIDENCE block (step 5) is mandatory;
    it is how the farmer flow proves it did not make things up.
+5. **MSP figures come ONLY from `AGRI.PUBLIC.MSP`.** Never quote an MSP from
+   memory — they change every season. If the crop is not in the MSP table
+   (onion, tomato, potato, chilli and other horticulture), say it has no MSP.
 
 ## Inputs to extract from the request
 
@@ -88,7 +91,17 @@ ORDER BY arrival_date DESC LIMIT 10;
 ```
 
 Trend for sell-or-hold: latest modal vs the average modal of the 7 prior days
-in the same tier (`AVG(modal_price)` with `arrival_date` between).
+in the same tier (`AVG(modal_price)` with `arrival_date` between). For MSP
+crops also compare against the floor price:
+
+```sql
+SELECT commodity, variety_note, marketing_year, msp_per_quintal
+FROM AGRI.PUBLIC.MSP WHERE commodity ILIKE '<pattern>';
+```
+
+Quote it as "MSP (<marketing_year>, indicative)". Below-MSP market price ->
+mention government procurement (CCI for cotton, IKP/PACS for paddy, NAFED for
+tur) as the floor option.
 
 **Empty-result rule (hard):** if no tier-1 rows exist, you MUST say
 "no current mandi data for <crop> in <district> (last seen <date>)" — check
