@@ -23,6 +23,13 @@ CREATE SECRET IF NOT EXISTS AGRI.PUBLIC.DATA_GOV_KEY
   TYPE = GENERIC_STRING
   SECRET_STRING = 'PENDING';
 
+-- One row per refresh run; task history does not keep the proc's return
+-- string, so failures inside the proc would otherwise be invisible.
+CREATE TABLE IF NOT EXISTS AGRI.PUBLIC.REFRESH_LOG (
+  run_at TIMESTAMP_LTZ,
+  summary STRING
+);
+
 CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS AGRI_APIS_INTEGRATION
   ALLOWED_NETWORK_RULES = (AGRI.PUBLIC.AGRI_APIS_NETWORK_RULE)
   ALLOWED_AUTHENTICATION_SECRETS = (AGRI.PUBLIC.DATA_GOV_KEY)
@@ -124,8 +131,10 @@ def fetch_mandi(api_key):
     # make the MERGE error out ("duplicate row detected").
     seen, rows, offset, limit = set(), [], 0, 1000
     while True:
-        # data.gov.in is flaky under load — retry transient failures.
-        for attempt in range(3):
+        # data.gov.in is flaky under load (evening especially) — retry hard,
+        # because the feed only carries today's snapshot: a failed run means
+        # that day's data is gone for good.
+        for attempt in range(5):
             try:
                 resp = requests.get(
                     "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070",
@@ -139,9 +148,9 @@ def fetch_mandi(api_key):
                 resp.raise_for_status()
                 break
             except requests.RequestException:
-                if attempt == 2:
+                if attempt == 4:
                     raise
-                time.sleep(5)
+                time.sleep(5 * (2 ** attempt))
         records = resp.json().get("records", [])
         for r in records:
             try:
@@ -214,12 +223,34 @@ def main(session):
     else:
         parts.append("mandi: SKIPPED (secret DATA_GOV_KEY still PENDING)")
 
-    return "; ".join(parts)
+    summary = "; ".join(parts)
+    session.sql(
+        "INSERT INTO AGRI.PUBLIC.REFRESH_LOG VALUES (CURRENT_TIMESTAMP(), ?)",
+        params=[summary],
+    ).collect()
+    return summary
 $$;
 
+-- Task graph: refresh 13:30 + 18:30 IST, then prune >90-day-old prices.
+-- Graph edits require the root suspended; child must go before the root
+-- can be CREATE OR REPLACEd.
+ALTER TASK IF EXISTS AGRI.PUBLIC.DAILY_REFRESH_TASK SUSPEND;
+DROP TASK IF EXISTS AGRI.PUBLIC.PRUNE_MANDI_TASK;
+
+-- Twice daily: 13:30 backstop (API reliably fast midday) + 18:30 full
+-- evening snapshot. MERGE makes the double run duplicate-free.
 CREATE OR REPLACE TASK AGRI.PUBLIC.DAILY_REFRESH_TASK
   WAREHOUSE = KISAN_WH
-  SCHEDULE = 'USING CRON 30 18 * * * Asia/Kolkata'
+  SCHEDULE = 'USING CRON 30 13,18 * * * Asia/Kolkata'
   AS CALL AGRI.PUBLIC.REFRESH_LIVE_DATA();
 
+-- ~6.5k national rows/day; 90 days keeps the 2-3 month trend window the
+-- sell-or-hold advice needs while keeping scans tidy.
+CREATE TASK AGRI.PUBLIC.PRUNE_MANDI_TASK
+  WAREHOUSE = KISAN_WH
+  AFTER AGRI.PUBLIC.DAILY_REFRESH_TASK
+  AS DELETE FROM AGRI.PUBLIC.MANDI_PRICES
+     WHERE arrival_date < DATEADD(day, -90, CURRENT_DATE());
+
+ALTER TASK AGRI.PUBLIC.PRUNE_MANDI_TASK RESUME;
 ALTER TASK AGRI.PUBLIC.DAILY_REFRESH_TASK RESUME;

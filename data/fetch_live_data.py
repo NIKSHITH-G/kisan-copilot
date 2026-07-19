@@ -118,8 +118,10 @@ def fetch_mandi_prices(api_key):
     """
     seen, rows, offset, limit = set(), [], 0, 1000
     while True:
-        # data.gov.in is flaky under load — retry transient failures.
-        for attempt in range(3):
+        # data.gov.in is flaky under load (evening especially) — retry hard,
+        # because the feed only carries today's snapshot: a failed run means
+        # that day's data is gone for good.
+        for attempt in range(5):
             try:
                 resp = requests.get(
                     AGMARKNET_URL,
@@ -135,15 +137,15 @@ def fetch_mandi_prices(api_key):
                 resp.raise_for_status()
                 break
             except requests.RequestException as e:
-                if attempt == 2:
+                if attempt == 4:
                     # Don't re-raise raw: the exception text embeds the
                     # request URL, which contains the api key.
                     status = getattr(getattr(e, "response", None), "status_code", "n/a")
                     raise RuntimeError(
-                        f"data.gov.in request failed after 3 attempts: "
+                        f"data.gov.in request failed after 5 attempts: "
                         f"{type(e).__name__} (http {status})"
                     ) from None
-                time.sleep(5)
+                time.sleep(5 * (2 ** attempt))
         records = resp.json().get("records", [])
         for r in records:
             try:
