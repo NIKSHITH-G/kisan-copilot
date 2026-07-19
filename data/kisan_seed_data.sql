@@ -1,4 +1,14 @@
 -- Kisan Copilot seed data (synthetic, Telangana) --
+--
+-- *** WARNING — DESTRUCTIVE ***
+-- This file CREATE OR REPLACEs MANDI_PRICES, WEATHER and CROP_CALENDAR,
+-- wiping the LIVE national data loaded by the daily pipeline. It exists only
+-- as a deliberate demo-day fallback. If you ever run it, restore live state
+-- afterwards with:
+--   CALL AGRI.PUBLIC.REFRESH_LIVE_DATA();
+--   deploy data/setup_crop_calendar.sql
+-- (or recover pre-wipe tables via ALTER TABLE ... RENAME + UNDROP TABLE
+-- within the Time Travel window).
 
 
 CREATE OR REPLACE TABLE AGRI.PUBLIC.MANDI_PRICES (

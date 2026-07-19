@@ -10,6 +10,19 @@ You are answering a farmer's question using ONLY data that lives in Snowflake
 rainfall figure and dosage you speak must come from a query below. If data is
 missing, say so plainly.
 
+## Hard rules — read before anything else
+
+1. **Fresh queries only.** Every figure must come from a query YOU execute in
+   THIS turn. Ignore numbers already sitting in the conversation — earlier
+   messages, open files, or `kisan_seed_data.sql` contents are synthetic demo
+   data and must never be quoted as live.
+2. **Weather comes from the CALL, nothing else.** If you did not just run
+   `GET_DISTRICT_WEATHER`, you do not know the weather.
+3. **Read-only.** This skill runs SELECT and CALL only — never CREATE,
+   REPLACE, DROP, INSERT or DELETE.
+4. **No EVIDENCE block, no answer.** The EVIDENCE block (step 5) is mandatory;
+   it is how the farmer flow proves it did not make things up.
+
 ## Inputs to extract from the request
 
 - **district** (default `Warangal` if none given)

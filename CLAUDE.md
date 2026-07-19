@@ -72,6 +72,8 @@ kisan-copilot/
 7. **Demo + submission** — record a 3–4 min video showing the voice moment AND CoCo doing real SQL + Cortex Search; write the submission emphasizing CoCo.
 
 ## Guardrails
+- **Test the farmer flow in a FRESH `cortex` session only.** On 2026-07-19 a question asked inside a resumed session (whose context held kisan_seed_data.sql) was answered from that stale context — synthetic "0mm rain" instead of the live 22.9mm — without querying Snowflake. The skill now has hard rules against this, but a clean session is the reliable setup. Check the answer has an EVIDENCE block; no EVIDENCE = skill not followed.
+- **`data/kisan_seed_data.sql` is DESTRUCTIVE** (CREATE OR REPLACE over live tables). Demo-day fallback only; recovery steps are in its header.
 - **Live Agmarknet naming differs from seed data:** commodities come as e.g. `Paddy(Common)`, `Paddy(Dhan)(Basmati)`; markets are real APMC names (`Sattupally APMC`), districts beyond the 4 pilot ones appear. The `crop_advisory` skill must match fuzzily (ILIKE '%paddy%' etc.), never by exact string.
 - **data.gov.in blocks the default python-requests User-Agent** (silent timeout/502). Always send a custom UA header — already handled in both loaders; keep it if writing new fetch code.
 - Prices + weather are **live (daily)**; agronomy knowledge is a **curated corpus** (doesn't change hourly) — don't try to make fertilizer advice "live."
