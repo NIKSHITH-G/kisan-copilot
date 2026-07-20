@@ -144,18 +144,8 @@ def send(body: SendBody):
 
 @app.get("/", include_in_schema=False)
 def root():
-    from fastapi.responses import HTMLResponse
-    return HTMLResponse("""<!doctype html><meta charset="utf-8">
-<title>Kisan Copilot API</title>
-<body style="font-family:system-ui;max-width:640px;margin:3rem auto;line-height:1.6">
-<h1>🌾 Kisan Copilot</h1>
-<p>Voice crop advisory — reasoning runs inside Snowflake (proc
-<code>AGRI.PUBLIC.ANSWER_FARMER</code>), Sarvam handles speech.</p>
-<ul>
-<li><a href="/docs">/docs</a> — try the API in the browser (upload audio to
-<code>POST /ask</code>, or use <code>POST /ask_text</code>)</li>
-<li><a href="/health">/health</a> — Snowflake + Sarvam status</li>
-</ul></body>""")
+    from fastapi.responses import FileResponse
+    return FileResponse(REPO_ROOT / "frontend" / "index.html")
 
 
 @app.get("/health")

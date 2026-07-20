@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kisan Copilot</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto;
+         padding: 1.2rem; line-height: 1.5; }
+  h1 { font-size: 1.4rem; margin: .2rem 0 1rem; }
+  label { font-size: .85rem; opacity: .8; display: block; margin-top: .6rem; }
+  input { width: 100%; padding: .55rem .7rem; font-size: 1rem; border-radius: .5rem;
+          border: 1px solid #8888; background: transparent; color: inherit; }
+  #mic { display: block; margin: 1.4rem auto; width: 110px; height: 110px;
+         border-radius: 50%; border: none; font-size: 2.6rem; cursor: pointer;
+         background: #2e7d32; color: #fff; transition: transform .15s; }
+  #mic.rec { background: #c62828; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { transform: scale(1.08); } }
+  #status { text-align: center; min-height: 1.4em; opacity: .85; }
+  #spoken { font-size: 1.15rem; margin-top: 1rem; white-space: pre-wrap; }
+  #english { font-size: .9rem; opacity: .75; margin-top: .6rem; white-space: pre-wrap; }
+  details { margin-top: 1rem; font-size: .8rem; }
+  pre { overflow-x: auto; background: #8881; padding: .6rem; border-radius: .5rem; }
+  .err { color: #e53935; }
+</style>
+</head>
+<body>
+<h1>🌾 Kisan Copilot <small style="font-size:.7rem;opacity:.6">Snowflake CoCo inside</small></h1>
+
+<label for="district">జిల్లా / District</label>
+<input id="district" value="Warangal" autocomplete="off">
+
+<button id="mic" title="Tap to ask">🎤</button>
+<div id="status">Tap the mic, ask in your language</div>
+
+<div id="spoken"></div>
+<div id="english"></div>
+<details id="evwrap" hidden><summary>EVIDENCE (from Snowflake)</summary><pre id="evidence"></pre></details>
+
+<script>
+const mic = document.getElementById("mic"), status = document.getElementById("status");
+let ctx, proc, stream, chunks = [], recording = false;
+
+function wavBlob(float32, rate) {
+  const pcm = new Int16Array(float32.length);
+  for (let i = 0; i < float32.length; i++)
+    pcm[i] = Math.max(-1, Math.min(1, float32[i])) * 0x7fff;
+  const buf = new ArrayBuffer(44 + pcm.length * 2), v = new DataView(buf);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + pcm.length * 2, true); w(8, "WAVEfmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data");
+  v.setUint32(40, pcm.length * 2, true);
+  new Int16Array(buf, 44).set(pcm);
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+async function start() {
+  stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  ctx = new AudioContext();
+  const src = ctx.createMediaStreamSource(stream);
+  proc = ctx.createScriptProcessor(4096, 1, 1);
+  chunks = [];
+  proc.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  src.connect(proc); proc.connect(ctx.destination);
+  recording = true; mic.classList.add("rec"); mic.textContent = "⏹";
+  status.textContent = "Listening… tap again when done";
+}
+
+async function stop() {
+  recording = false; mic.classList.remove("rec"); mic.textContent = "🎤";
+  proc.disconnect(); stream.getTracks().forEach(t => t.stop());
+  const flat = new Float32Array(chunks.reduce((n, c) => n + c.length, 0));
+  let o = 0; chunks.forEach(c => { flat.set(c, o); o += c.length; });
+  const blob = wavBlob(flat, ctx.sampleRate);
+  ctx.close();
+  status.textContent = "Thinking… (Snowflake is reasoning)";
+  const fd = new FormData();
+  fd.append("audio", blob, "question.wav");
+  fd.append("district", document.getElementById("district").value || "Warangal");
+  try {
+    const r = await fetch("/ask", { method: "POST", body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || r.status);
+    document.getElementById("spoken").textContent = j.spoken_text;
+    document.getElementById("english").textContent =
+      j.english !== j.spoken_text ? j.english : "";
+    document.getElementById("evidence").textContent = JSON.stringify(j.evidence, null, 2);
+    document.getElementById("evwrap").hidden = false;
+    status.textContent = `heard: “${j.transcript}” (${j.language_code}, ${j.crop || "crop?"})`;
+    new Audio("data:audio/wav;base64," + j.audio_base64).play();
+  } catch (e) {
+    status.innerHTML = `<span class="err">${e.message}</span>`;
+  }
+}
+
+mic.onclick = () => (recording ? stop() : start().catch(e =>
+  status.innerHTML = `<span class="err">mic: ${e.message}</span>`));
+</script>
+</body>
+</html>
