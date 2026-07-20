@@ -6,191 +6,183 @@
 <title>Kisan Copilot — voice crop advisory</title>
 <style>
   :root {
-    --bg: #0b0e0c; --bg-glow: rgba(47,174,96,.14);
-    --card: rgba(255,255,255,.045); --card-border: rgba(255,255,255,.09);
-    --ink: #eef2ee; --ink-2: #aab4ab; --ink-3: #6d776e;
-    --accent: #2fae60; --accent-ink: #eafff2; --accent-soft: rgba(47,174,96,.16);
+    --bg: #0b0e0c; --bg-glow: rgba(47,174,96,.13);
+    --card: rgba(255,255,255,.045); --card-2: rgba(255,255,255,.07);
+    --border: rgba(255,255,255,.09);
+    --ink: #eef2ee; --ink-2: #a8b2a9; --ink-3: #6d776e;
+    --accent: #2fae60; --accent-soft: rgba(47,174,96,.15);
     --data: #2fae60; --danger: #ef5350; --warn: #f0b429;
-    --blue: #7cb8ff; --blue-soft: rgba(93,160,255,.14);
-    --radius: 18px;
+    --user: rgba(93,160,255,.13);
   }
   @media (prefers-color-scheme: light) {
     :root {
-      --bg: #f6faf7; --bg-glow: rgba(22,163,74,.10);
-      --card: #ffffff; --card-border: #e3e9e4;
-      --ink: #17211a; --ink-2: #516054; --ink-3: #8a968d;
-      --accent: #16a34a; --accent-soft: rgba(22,163,74,.12);
-      --data: #16a34a; --blue: #2563eb; --blue-soft: rgba(37,99,235,.10);
+      --bg: #f5f9f6; --bg-glow: rgba(22,163,74,.09);
+      --card: #ffffff; --card-2: #f1f5f2; --border: #dfe7e1;
+      --ink: #17211a; --ink-2: #4f5e52; --ink-3: #8a968d;
+      --accent: #16a34a; --accent-soft: rgba(22,163,74,.11);
+      --data: #16a34a; --user: rgba(37,99,235,.08);
     }
   }
   * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
   body {
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: var(--bg) radial-gradient(900px 480px at 50% -140px, var(--bg-glow), transparent 70%) no-repeat;
-    color: var(--ink); line-height: 1.55; min-height: 100vh;
+    background: var(--bg) radial-gradient(820px 420px at 50% -120px, var(--bg-glow), transparent 70%) fixed no-repeat;
+    color: var(--ink); line-height: 1.55; display: flex; flex-direction: column;
   }
-  .wrap { max-width: 660px; margin: 0 auto; padding: 1.1rem 1.1rem 4rem; }
 
-  header { display: flex; align-items: center; gap: .7rem; padding: .4rem 0 1.4rem; }
-  .logo { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
-          font-size: 1.35rem; background: linear-gradient(135deg, #1d7a41, #2fae60);
-          box-shadow: 0 4px 18px rgba(47,174,96,.35); }
-  .brand b { font-size: 1.12rem; letter-spacing: -.01em; }
-  .brand small { display: block; font-size: .72rem; color: var(--ink-3); margin-top: -2px; }
-  .pill { font-size: .62rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
-          padding: .15rem .5rem; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }
+  header {
+    position: sticky; top: 0; z-index: 20; backdrop-filter: blur(14px);
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    border-bottom: 1px solid var(--border);
+  }
+  .hin { max-width: 760px; margin: 0 auto; padding: .6rem 1rem;
+         display: flex; align-items: center; gap: .65rem; }
+  .logo { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+          font-size: 1.2rem; background: linear-gradient(135deg, #1d7a41, #2fae60);
+          box-shadow: 0 3px 14px rgba(47,174,96,.35); }
+  .brand b { font-size: 1.02rem; letter-spacing: -.01em; }
+  .brand small { display: block; font-size: .68rem; color: var(--ink-3); margin-top: -2px; }
+  .pill { font-size: .58rem; font-weight: 700; letter-spacing: .07em; padding: .13rem .45rem;
+          border-radius: 99px; background: var(--accent-soft); color: var(--accent);
+          vertical-align: 2px; }
   .health { margin-left: auto; display: flex; align-items: center; gap: .4rem;
-            font-size: .72rem; color: var(--ink-3); }
+            font-size: .7rem; color: var(--ink-3); white-space: nowrap; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); }
   .dot.ok { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
   .dot.bad { background: var(--danger); }
 
-  .hero { text-align: center; margin: .4rem 0 1.6rem; }
-  .hero h1 { font-size: clamp(1.5rem, 5vw, 2.05rem); letter-spacing: -.02em; line-height: 1.2; }
+  main { flex: 1; width: 100%; max-width: 760px; margin: 0 auto;
+         padding: 1rem 1rem 8.5rem; }
+
+  .hero { text-align: center; padding: 2.2rem 0 1rem; }
+  .hero h1 { font-size: clamp(1.45rem, 5vw, 2rem); letter-spacing: -.02em; line-height: 1.22; }
   .hero h1 span { background: linear-gradient(90deg, var(--accent), #7ed9a4);
                   -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .hero p { color: var(--ink-2); font-size: .92rem; margin-top: .5rem; }
-  .badges { display: flex; flex-wrap: wrap; gap: .45rem; justify-content: center; margin-top: 1rem; }
-  .badge { font-size: .7rem; color: var(--ink-2); border: 1px solid var(--card-border);
-           background: var(--card); border-radius: 99px; padding: .28rem .65rem; }
+  .hero p { color: var(--ink-2); font-size: .9rem; margin-top: .55rem; }
+  .badges { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; margin: 1rem 0 1.6rem; }
+  .badge { font-size: .68rem; color: var(--ink-2); border: 1px solid var(--border);
+           background: var(--card); border-radius: 99px; padding: .26rem .6rem; }
+  .examples { display: grid; gap: .5rem; max-width: 460px; margin: 0 auto; }
+  .ex { text-align: left; font-size: .88rem; padding: .65rem .9rem; cursor: pointer;
+        border: 1px solid var(--border); border-radius: 14px; background: var(--card);
+        color: var(--ink); transition: border-color .15s; font-family: inherit; }
+  .ex:hover { border-color: var(--accent); }
+  .ex small { display: block; color: var(--ink-3); font-size: .68rem; margin-top: .1rem; }
 
-  .panel { background: var(--card); border: 1px solid var(--card-border);
-           border-radius: var(--radius); padding: 1.1rem; backdrop-filter: blur(8px); }
-  label { font-size: .72rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
-          color: var(--ink-3); display: block; margin-bottom: .4rem; }
-  input[type=text], input[type=tel] {
-    width: 100%; padding: .6rem .8rem; font-size: .95rem; border-radius: 12px;
-    border: 1px solid var(--card-border); background: transparent; color: var(--ink); outline: none;
-  }
-  input:focus { border-color: var(--accent); }
-  .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .55rem; }
-  .chip { font-size: .78rem; padding: .3rem .7rem; border-radius: 99px; cursor: pointer;
-          border: 1px solid var(--card-border); background: transparent; color: var(--ink-2); }
-  .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
-
-  .micwrap { text-align: center; padding: 1.5rem 0 .4rem; }
-  #mic { width: 96px; height: 96px; border-radius: 50%; border: none; cursor: pointer;
-         font-size: 2.1rem; color: #fff; position: relative;
-         background: linear-gradient(150deg, #1d7a41, #2fae60);
-         box-shadow: 0 8px 30px rgba(47,174,96,.45); transition: transform .12s; }
-  #mic:active { transform: scale(.96); }
-  #mic:disabled { filter: grayscale(.5); opacity: .6; cursor: wait; }
-  #mic.rec { background: linear-gradient(150deg, #b3261e, #ef5350); box-shadow: 0 8px 30px rgba(239,83,80,.5); }
-  #mic.rec::after { content: ""; position: absolute; inset: -9px; border-radius: 50%;
-                    border: 2px solid rgba(239,83,80,.55); animation: ring 1.3s ease-out infinite; }
-  @keyframes ring { from { transform: scale(.85); opacity: 1; } to { transform: scale(1.25); opacity: 0; } }
-  #status { min-height: 1.5em; color: var(--ink-2); font-size: .88rem; margin-top: .8rem; text-align: center; }
-  #status .err { color: var(--danger); }
-
-  .steps { display: none; justify-content: center; gap: 1rem; flex-wrap: wrap; margin-top: .9rem; }
-  .steps.show { display: flex; }
-  .step { font-size: .74rem; color: var(--ink-3); display: flex; align-items: center; gap: .35rem; }
-  .step::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
-  .step.live { color: var(--accent); font-weight: 600; }
-  .step.live::before { background: var(--accent); animation: blink 1s infinite; }
-  .step.done { color: var(--ink-2); }
-  .step.done::before { background: var(--accent); }
-  @keyframes blink { 50% { opacity: .3; } }
-
-  .qa { margin-top: 1.3rem; display: grid; gap: 1rem; }
-  .q { justify-self: end; max-width: 88%; background: var(--blue-soft);
-       border: 1px solid var(--card-border); border-radius: 16px 16px 4px 16px;
-       padding: .7rem .95rem; font-size: .95rem; }
-  .q .meta { display: flex; gap: .35rem; margin-top: .45rem; flex-wrap: wrap; }
-  .tag { font-size: .66rem; font-weight: 600; padding: .12rem .5rem; border-radius: 99px;
-         background: var(--card); border: 1px solid var(--card-border); color: var(--ink-2); }
+  .msg { margin-top: 1rem; display: flex; }
+  .msg.user { justify-content: flex-end; }
+  .bubble { max-width: 86%; padding: .65rem .9rem; border-radius: 16px; font-size: .95rem; }
+  .user .bubble { background: var(--user); border: 1px solid var(--border);
+                  border-bottom-right-radius: 5px; }
+  .meta { display: flex; gap: .35rem; margin-top: .45rem; flex-wrap: wrap; }
+  .tag { font-size: .64rem; font-weight: 600; padding: .12rem .5rem; border-radius: 99px;
+         background: var(--card-2); border: 1px solid var(--border); color: var(--ink-2); }
   .tag.warn { color: var(--warn); border-color: var(--warn); }
 
-  .a { background: var(--card); border: 1px solid var(--card-border);
-       border-radius: 16px 16px 16px 4px; padding: 1rem 1.05rem; }
-  .native { font-size: 1.08rem; white-space: pre-wrap; }
-  .english { font-size: .84rem; color: var(--ink-2); margin-top: .6rem; white-space: pre-wrap; }
-  .arow { display: flex; align-items: center; gap: .5rem; margin-top: .8rem; flex-wrap: wrap; }
-  .btn { border: 1px solid var(--card-border); background: transparent; color: var(--ink);
-         padding: .42rem .85rem; border-radius: 10px; font-size: .82rem; cursor: pointer; }
+  .bot .bubble { background: var(--card); border: 1px solid var(--border);
+                 border-bottom-left-radius: 5px; width: 100%; max-width: 100%; padding: 1rem 1.05rem; }
+  .native { font-size: 1.06rem; white-space: pre-wrap; }
+  .english { font-size: .83rem; color: var(--ink-2); margin-top: .55rem; white-space: pre-wrap; }
+  .arow { display: flex; align-items: center; gap: .45rem; margin-top: .8rem; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--border); background: transparent; color: var(--ink);
+         padding: .4rem .8rem; border-radius: 10px; font-size: .8rem; cursor: pointer;
+         font-family: inherit; }
   .btn:hover { border-color: var(--accent); }
   .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
   .btn:disabled { opacity: .55; cursor: wait; }
 
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-           gap: .6rem; margin-top: .9rem; }
-  .tile { border: 1px solid var(--card-border); border-radius: 12px; padding: .6rem .7rem; }
-  .tile .k { font-size: .66rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
-  .tile .v { font-size: 1.05rem; font-weight: 650; margin-top: .15rem; }
-  .tile .s { font-size: .7rem; color: var(--ink-2); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+           gap: .55rem; margin-top: .85rem; }
+  .tile { border: 1px solid var(--border); border-radius: 12px; padding: .55rem .65rem;
+          background: var(--card-2); }
+  .tile .k { font-size: .62rem; font-weight: 700; letter-spacing: .05em;
+             text-transform: uppercase; color: var(--ink-3); }
+  .tile .v { font-size: 1.02rem; font-weight: 650; margin-top: .12rem; }
+  .tile .s { font-size: .68rem; color: var(--ink-2); }
   .up { color: var(--accent); } .down { color: var(--danger); }
-  .spark { margin-top: .3rem; }
-  .spark svg { display: block; width: 100%; height: 42px; overflow: visible; }
+  .spark svg { display: block; width: 100%; height: 40px; overflow: visible; margin-top: .3rem; }
 
-  .send { margin-top: .95rem; padding-top: .85rem; border-top: 1px dashed var(--card-border); }
-  .send .row { display: flex; gap: .5rem; }
-  .send input { flex: 1; }
-  .sendnote { font-size: .72rem; margin-top: .4rem; color: var(--ink-3); }
-  .sendnote.ok { color: var(--accent); }
-  .sendnote.err { color: var(--danger); }
+  .send { margin-top: .9rem; padding-top: .8rem; border-top: 1px dashed var(--border); }
+  .send label { font-size: .66rem; font-weight: 700; letter-spacing: .05em;
+                text-transform: uppercase; color: var(--ink-3); }
+  .send .row { display: flex; gap: .5rem; margin-top: .35rem; }
+  .send input { flex: 1; padding: .5rem .7rem; font-size: .88rem; border-radius: 10px;
+                border: 1px solid var(--border); background: transparent; color: var(--ink); }
+  .sendnote { font-size: .7rem; margin-top: .35rem; color: var(--ink-3); }
+  .sendnote.ok { color: var(--accent); } .sendnote.err { color: var(--danger); }
 
-  details { margin-top: .9rem; font-size: .8rem; }
+  details { margin-top: .85rem; font-size: .78rem; }
   summary { cursor: pointer; color: var(--ink-2); }
   pre { overflow-x: auto; background: rgba(127,127,127,.09); padding: .6rem;
-        border-radius: 10px; font-size: .7rem; margin-top: .5rem; }
+        border-radius: 10px; font-size: .68rem; margin-top: .45rem; }
 
-  footer { text-align: center; color: var(--ink-3); font-size: .7rem; margin-top: 2.2rem; }
+  .think { display: flex; align-items: center; gap: .6rem; color: var(--ink-2); font-size: .85rem; }
+  .dots { display: inline-flex; gap: 4px; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+            animation: bnc 1.2s infinite; }
+  .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
+  @keyframes bnc { 30% { transform: translateY(-4px); opacity: .5; } }
+
+  .composer { position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+              background: linear-gradient(transparent, var(--bg) 38%); padding: 1.4rem 0 max(env(safe-area-inset-bottom), .9rem); }
+  .cin { max-width: 760px; margin: 0 auto; padding: 0 1rem; }
+  .bar { display: flex; align-items: center; gap: .45rem; background: var(--card);
+         border: 1px solid var(--border); border-radius: 999px; padding: .4rem .45rem .4rem 1.1rem;
+         backdrop-filter: blur(14px); box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+  .bar.rec { border-color: var(--danger); }
+  #ti { flex: 1; border: none; background: transparent; color: var(--ink);
+        font-size: .98rem; outline: none; font-family: inherit; min-width: 0; }
+  .cbtn { width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
+          font-size: 1.15rem; display: grid; place-items: center; flex: none; color: #fff; }
+  #micb { background: linear-gradient(150deg, #1d7a41, #2fae60); }
+  #micb.rec { background: linear-gradient(150deg, #b3261e, #ef5350); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 9px rgba(239,83,80,.18); } }
+  #sendb { background: var(--card-2); color: var(--ink-2); border: 1px solid var(--border); }
+  #sendb.ready { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .hint { text-align: center; font-size: .66rem; color: var(--ink-3); margin-top: .45rem; }
 </style>
 </head>
 <body>
-<div class="wrap">
 
-<header>
+<header><div class="hin">
   <div class="logo">🌾</div>
-  <div class="brand"><b>Kisan Copilot</b> <span class="pill">beta</span>
-    <small>voice crop advisory · Snowflake CoCo inside</small></div>
+  <div class="brand"><b>Kisan Copilot</b> <span class="pill">BETA</span>
+    <small>voice + text crop advisory · Snowflake CoCo inside</small></div>
   <div class="health"><span class="dot" id="hdot"></span><span id="htxt">connecting…</span></div>
-</header>
+</div></header>
 
-<section class="hero" id="hero">
-  <h1>Ask your farm anything.<br><span>In your language.</span></h1>
-  <p>Live mandi prices, live weather and agronomy — reasoned inside Snowflake,<br>spoken back in seconds. Never an invented number.</p>
-  <div class="badges">
-    <span class="badge">❄️ Snowflake Cortex</span><span class="badge">🎙 Sarvam AI</span>
-    <span class="badge">📈 Agmarknet · live</span><span class="badge">⛅ Open-Meteo · live</span>
-  </div>
-</section>
-
-<section class="panel">
-  <label for="district">District</label>
-  <input type="text" id="district" value="Warangal" autocomplete="off">
-  <div class="chips" id="dchips"></div>
-  <div class="micwrap">
-    <button id="mic" title="Tap to ask">🎤</button>
-    <div id="status">Tap the mic and ask — Telugu, Hindi, English…</div>
-    <div class="steps" id="steps">
-      <span class="step" data-s="0">Transcribing</span>
-      <span class="step" data-s="1">Snowflake reasoning</span>
-      <span class="step" data-s="2">Translating</span>
-      <span class="step" data-s="3">Speaking</span>
+<main>
+  <section class="hero" id="hero">
+    <h1>Ask your farm anything.<br><span>Speak or type — any language.</span></h1>
+    <p>It finds your district and crop from what you say. Live prices, live weather,<br>
+       agronomy — reasoned inside Snowflake. Never an invented number.</p>
+    <div class="badges">
+      <span class="badge">❄️ Snowflake Cortex</span><span class="badge">🎙 Sarvam AI</span>
+      <span class="badge">📈 Agmarknet · live</span><span class="badge">⛅ Open-Meteo · live</span>
     </div>
+    <div class="examples">
+      <button class="ex">పది రోజులుగా వాన లేదు, వరంగల్ లో నా పత్తికి నీళ్లు పెట్టాలా?<small>Telugu · cotton · Warangal</small></button>
+      <button class="ex">मेरा गेहूं करनाल में बेचूं या रुकूं?<small>Hindi · wheat · Karnal</small></button>
+      <button class="ex">Should I sell my chilli now? I am in Khammam.<small>English · chilli · Khammam</small></button>
+      <button class="ex">What is the apple price in Warangal today?<small>tests the no-invented-price guardrail</small></button>
+    </div>
+  </section>
+  <div id="thread"></div>
+</main>
+
+<div class="composer"><div class="cin">
+  <div class="bar" id="bar">
+    <input id="ti" placeholder="Type in any language… or tap the mic" autocomplete="off">
+    <button class="cbtn" id="sendb" title="Send">➤</button>
+    <button class="cbtn" id="micb" title="Hold a voice question">🎤</button>
   </div>
-</section>
-
-<div class="qa" id="qa"></div>
-
-<footer>Data refreshes twice daily inside Snowflake (Agmarknet · Open-Meteo · MSP table).<br>
-Advice is indicative — confirm dosages with your local agriculture officer.</footer>
-</div>
+  <div class="hint" id="hint">Mic: tap to talk, tap again to finish · answers are spoken back</div>
+</div></div>
 
 <script>
 const $ = id => document.getElementById(id);
-const DISTRICTS = ["Warangal", "Khammam", "Karimnagar", "Nizamabad"];
-const dchips = $("dchips");
-DISTRICTS.forEach(d => {
-  const b = document.createElement("button");
-  b.className = "chip" + (d === "Warangal" ? " on" : ""); b.textContent = d;
-  b.onclick = () => { $("district").value = d;
-    [...dchips.children].forEach(c => c.classList.toggle("on", c === b)); };
-  dchips.appendChild(b);
-});
-$("district").addEventListener("input", () =>
-  [...dchips.children].forEach(c => c.classList.toggle("on", c.textContent === $("district").value)));
+const thread = $("thread");
 
 fetch("/health").then(r => r.json()).then(h => {
   const ok = h.snowflake && h.sarvam_key;
@@ -198,28 +190,159 @@ fetch("/health").then(r => r.json()).then(h => {
   $("htxt").textContent = ok ? "Snowflake · live" : "backend degraded";
 }).catch(() => { $("hdot").className = "dot bad"; $("htxt").textContent = "backend offline"; });
 
-/* ---------- recorder ---------- */
-let ctx, proc, stream, chunks = [], recording = false, stepTimers = [];
+document.querySelectorAll(".ex").forEach(b =>
+  b.onclick = () => sendText(b.childNodes[0].textContent.trim()));
+
+const fmt = n => n == null ? "—" : Number(n).toLocaleString("en-IN");
+const esc = s => (s || "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function scrollBottom() { requestAnimationFrame(() => window.scrollTo({top: document.body.scrollHeight, behavior: "smooth"})); }
+function addUser(text) {
+  $("hero").style.display = "none";
+  const el = document.createElement("div");
+  el.className = "msg user"; el.innerHTML = `<div class="bubble">${esc(text)}</div>`;
+  thread.appendChild(el); scrollBottom(); return el;
+}
+function addThinking(label) {
+  const el = document.createElement("div");
+  el.className = "msg bot";
+  el.innerHTML = `<div class="bubble"><div class="think">
+    <span class="dots"><i></i><i></i><i></i></span><span class="tl">${label}</span></div></div>`;
+  thread.appendChild(el); scrollBottom();
+  const tl = el.querySelector(".tl");
+  const stages = ["Snowflake reasoning — live weather, prices, agronomy…",
+                  "Composing advice…", "Translating & speaking…"];
+  let i = 0;
+  const t = setInterval(() => { if (i < stages.length) tl.textContent = stages[i++]; }, 9000);
+  el.stop = () => clearInterval(t);
+  return el;
+}
+
+function sparkline(rows) {
+  if (!rows || rows.length < 3) return "";
+  const pts = [...rows].reverse();
+  const ys = pts.map(p => +p.modal_price);
+  const min = Math.min(...ys), max = Math.max(...ys), span = (max - min) || 1;
+  const W = 130, H = 32;
+  const xy = i => [i * W / (pts.length - 1), H - ((ys[i] - min) / span) * H];
+  const path = ys.map((_, i) => xy(i).map(v => v.toFixed(1)).join(",")).join(" ");
+  const [lx, ly] = xy(pts.length - 1);
+  const hits = pts.map((p, i) => { const [x, y] = xy(i);
+    return `<circle cx="${x}" cy="${y}" r="9" fill="transparent"><title>₹${fmt(p.modal_price)} · ${esc(p.market)} · ${p.arrival_date}</title></circle>`; }).join("");
+  return `<div class="spark" role="img" aria-label="price trend, last ${pts.length} records">
+    <svg viewBox="-4 -6 ${W + 8} ${H + 12}" preserveAspectRatio="none">
+    <polyline points="${path}" fill="none" stroke="var(--data)" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${lx}" cy="${ly}" r="3" fill="var(--data)"/>${hits}</svg></div>`;
+}
+
+function renderAnswer(j) {
+  const ev = j.evidence || {}, w = ev.weather || {}, t = ev.price_trend, msp = (ev.msp || [])[0];
+  const tier = ev.price_tier_used;
+  const tierTag = tier === "district" ? `<span class="tag">🏪 local mandi</span>`
+    : `<span class="tag warn">⚠︎ no local price — ${tier === "state" ? "state" : "all-India"} shown</span>`;
+  const noteTag = ev.district_note ? `<span class="tag warn">📍 ${esc(ev.district_note)}</span>` : "";
+  let pct = "";
+  if (t && t.prior_avg) {
+    const p = 100 * (t.latest_avg - t.prior_avg) / t.prior_avg;
+    pct = `<span class="${p >= 0 ? "up" : "down"}">${p >= 0 ? "▲" : "▼"} ${Math.abs(p).toFixed(1)}%</span>`;
+  }
+  const el = document.createElement("div");
+  el.className = "msg bot";
+  el.innerHTML = `<div class="bubble">
+    <div class="meta" style="margin:0 0 .6rem">
+      <span class="tag">📍 ${esc(j.district)}</span>
+      ${j.crop ? `<span class="tag">🌱 ${esc(j.crop)}</span>` : ""}
+      <span class="tag">${esc(j.language_code)}</span>${tierTag}${noteTag}</div>
+    <div class="native">${esc(j.spoken_text)}</div>
+    ${j.english && j.english !== j.spoken_text ? `<div class="english">${esc(j.english)}</div>` : ""}
+    <div class="arow">${j.audio_base64 ? `<button class="btn primary replay">🔊 Play</button>` : ""}</div>
+    <div class="tiles">
+      <div class="tile"><div class="k">Rain · 7 days</div>
+        <div class="v">${fmt(w.rain_last_7_days_mm)} mm</div>
+        <div class="s">humidity ${fmt(w.today && w.today.humidity)}%</div></div>
+      ${t ? `<div class="tile"><div class="k">Latest price</div>
+        <div class="v">₹${fmt(t.latest_avg)} ${pct}</div>
+        <div class="s">wk avg ₹${fmt(t.prior_avg)} · /quintal</div>${sparkline(ev.price_rows)}</div>` : ""}
+      ${msp ? `<div class="tile"><div class="k">MSP ${esc(msp.marketing_year)}</div>
+        <div class="v">₹${fmt(msp.msp_per_quintal)}</div>
+        <div class="s">${esc(msp.variety_note !== "-" ? msp.variety_note : msp.commodity)} · indicative</div></div>` : ""}
+      ${(ev.crop_stage || [])[0] ? `<div class="tile"><div class="k">Crop stage</div>
+        <div class="v" style="font-size:.9rem">${esc(ev.crop_stage[0].stage)}</div>
+        <div class="s">water need: ${esc(ev.crop_stage[0].water_need)}</div></div>` : ""}
+    </div>
+    <div class="send"><label>Send to farmer's WhatsApp</label>
+      <div class="row"><input type="tel" class="phone" placeholder="+91XXXXXXXXXX"
+        value="${localStorage.kcPhone || ""}">
+        <button class="btn primary wsend">Send ➤</button></div>
+      <div class="sendnote"></div></div>
+    <details><summary>EVIDENCE — every number, from Snowflake</summary>
+      <pre>${esc(JSON.stringify(ev, null, 2))}</pre></details>
+  </div>`;
+  thread.appendChild(el);
+  if (j.audio_base64) {
+    const player = new Audio("data:audio/wav;base64," + j.audio_base64);
+    player.play().catch(() => {});
+    el.querySelector(".replay").onclick = () => { player.currentTime = 0; player.play(); };
+  }
+  const btn = el.querySelector(".wsend"), phone = el.querySelector(".phone"),
+        note = el.querySelector(".sendnote");
+  btn.onclick = async () => {
+    const to = phone.value.trim();
+    if (!/^\+\d{10,14}$/.test(to)) { note.textContent = "Number format: +91XXXXXXXXXX"; note.className = "sendnote err"; return; }
+    localStorage.kcPhone = to; btn.disabled = true;
+    note.textContent = "Sending…"; note.className = "sendnote";
+    try {
+      const r = await fetch("/send", { method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({to, text: "🌾 Kisan Copilot:\n" + j.spoken_text}) });
+      const res = await r.json();
+      if (res.ok && !res.dry_run) { note.textContent = "✓ Sent on WhatsApp"; note.className = "sendnote ok"; }
+      else if (res.dry_run) { note.textContent = "Dry-run — Twilio creds not configured"; note.className = "sendnote"; }
+      else { note.textContent = res.error || "send failed"; note.className = "sendnote err"; }
+    } catch (e) { note.textContent = e.message; note.className = "sendnote err"; }
+    btn.disabled = false;
+  };
+  scrollBottom();
+}
+
+function fail(thinkEl, msg) {
+  thinkEl.stop();
+  thinkEl.querySelector(".bubble").innerHTML =
+    `<span style="color:var(--danger);font-size:.88rem">⚠︎ ${esc(msg)}</span>`;
+}
+
+/* ---------- text path ---------- */
+async function sendText(text) {
+  text = (text || "").trim();
+  if (!text || busy) return;
+  setBusy(true); $("ti").value = "";
+  addUser(text);
+  const th = addThinking("Snowflake reasoning — live weather, prices, agronomy…");
+  try {
+    const r = await fetch("/ask_text", { method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({text}) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || "HTTP " + r.status);
+    th.stop(); th.remove(); renderAnswer(j);
+  } catch (e) { fail(th, e.message); }
+  setBusy(false);
+}
+
+/* ---------- voice path ---------- */
+let ctx, proc, stream, chunks = [], recording = false, busy = false;
+function setBusy(b) { busy = b; $("sendb").disabled = b; $("micb").disabled = b && !recording; }
 function wavBlob(f32, rate) {
   const pcm = new Int16Array(f32.length);
   for (let i = 0; i < f32.length; i++) pcm[i] = Math.max(-1, Math.min(1, f32[i])) * 0x7fff;
   const buf = new ArrayBuffer(44 + pcm.length * 2), v = new DataView(buf);
   const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
-  w(0,"RIFF"); v.setUint32(4, 36 + pcm.length*2, true); w(8,"WAVEfmt ");
+  w(0,"RIFF"); v.setUint32(4,36+pcm.length*2,true); w(8,"WAVEfmt ");
   v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
   v.setUint32(24,rate,true); v.setUint32(28,rate*2,true); v.setUint16(32,2,true);
   v.setUint16(34,16,true); w(36,"data"); v.setUint32(40,pcm.length*2,true);
   new Int16Array(buf,44).set(pcm);
   return new Blob([buf], {type:"audio/wav"});
 }
-function setSteps(i) { // -1 hide, 0..3 live index, 4 all done
-  const el = $("steps");
-  if (i < 0) { el.classList.remove("show"); return; }
-  el.classList.add("show");
-  [...el.children].forEach((s, n) =>
-    s.className = "step" + (n < i ? " done" : n === i ? " live" : ""));
-}
-async function start() {
+async function recStart() {
   stream = await navigator.mediaDevices.getUserMedia({audio: true});
   ctx = new AudioContext();
   const src = ctx.createMediaStreamSource(stream);
@@ -227,133 +350,39 @@ async function start() {
   chunks = [];
   proc.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
   src.connect(proc); proc.connect(ctx.destination);
-  recording = true; $("mic").classList.add("rec"); $("mic").textContent = "⏹";
-  $("status").textContent = "Listening… tap again when done";
+  recording = true;
+  $("micb").classList.add("rec"); $("micb").textContent = "⏹";
+  $("bar").classList.add("rec");
+  $("ti").placeholder = "Listening… tap ⏹ when done"; $("ti").disabled = true;
 }
-async function stop() {
-  recording = false; $("mic").classList.remove("rec"); $("mic").textContent = "🎤";
-  $("mic").disabled = true;
+async function recStop() {
+  recording = false;
+  $("micb").classList.remove("rec"); $("micb").textContent = "🎤";
+  $("bar").classList.remove("rec");
+  $("ti").placeholder = "Type in any language… or tap the mic"; $("ti").disabled = false;
   proc.disconnect(); stream.getTracks().forEach(t => t.stop());
   const flat = new Float32Array(chunks.reduce((n,c) => n+c.length, 0));
   let o = 0; chunks.forEach(c => { flat.set(c, o); o += c.length; });
   const blob = wavBlob(flat, ctx.sampleRate); ctx.close();
-  $("status").textContent = "Working on it…";
-  setSteps(0);
-  stepTimers = [setTimeout(() => setSteps(1), 4000),
-                setTimeout(() => setSteps(2), 22000),
-                setTimeout(() => setSteps(3), 27000)];
-  const fd = new FormData();
-  fd.append("audio", blob, "question.wav");
-  fd.append("district", $("district").value.trim() || "Warangal");
+  setBusy(true);
+  const ub = addUser("🎤 voice question…");
+  const th = addThinking("Transcribing your voice…");
+  const fd = new FormData(); fd.append("audio", blob, "question.wav");
   try {
     const r = await fetch("/ask", {method: "POST", body: fd});
     const j = await r.json();
-    if (!r.ok) throw new Error(j.detail || ("HTTP " + r.status));
-    render(j);
-    $("status").textContent = "Done — tap the mic to ask again";
-  } catch (e) {
-    $("status").innerHTML = `<span class="err">${e.message}</span>`;
-  } finally {
-    stepTimers.forEach(clearTimeout); setSteps(-1); $("mic").disabled = false;
-  }
+    if (!r.ok) throw new Error(j.detail || "HTTP " + r.status);
+    ub.querySelector(".bubble").textContent = "🎤 “" + j.transcript + "”";
+    th.stop(); th.remove(); renderAnswer(j);
+  } catch (e) { fail(th, e.message); }
+  setBusy(false);
 }
-$("mic").onclick = () => recording ? stop() :
-  start().catch(e => $("status").innerHTML = `<span class="err">mic: ${e.message}</span>`);
-
-/* ---------- rendering ---------- */
-const fmt = n => n == null ? "—" : Number(n).toLocaleString("en-IN");
-function sparkline(rows) {
-  if (!rows || rows.length < 3) return "";
-  const pts = [...rows].reverse();           // API is newest-first
-  const ys = pts.map(p => +p.modal_price);
-  const min = Math.min(...ys), max = Math.max(...ys), span = (max - min) || 1;
-  const W = 130, H = 34;
-  const xy = i => [i * W / (pts.length - 1), H - ((ys[i] - min) / span) * H];
-  const path = ys.map((_, i) => xy(i).map(v => v.toFixed(1)).join(",")).join(" ");
-  const [lx, ly] = xy(pts.length - 1);
-  const hits = pts.map((p, i) => { const [x, y] = xy(i);
-    return `<circle cx="${x}" cy="${y}" r="9" fill="transparent"><title>₹${fmt(p.modal_price)} · ${p.market} · ${p.arrival_date}</title></circle>`; }).join("");
-  return `<div class="spark" role="img" aria-label="price trend, last ${pts.length} records">
-    <svg viewBox="-4 -6 ${W + 8} ${H + 12}" preserveAspectRatio="none">
-      <polyline points="${path}" fill="none" stroke="var(--data)" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="${lx}" cy="${ly}" r="3" fill="var(--data)"/>${hits}</svg></div>`;
-}
-function render(j) {
-  $("hero").style.display = "none";
-  const ev = j.evidence || {}, w = ev.weather || {}, t = ev.price_trend, msp = (ev.msp || [])[0];
-  const tier = ev.price_tier_used;
-  const qa = $("qa"), box = document.createElement("div");
-  const tierTag = tier === "district" ? `<span class="tag">🏪 local mandi</span>`
-    : `<span class="tag warn">⚠︎ no local price data — ${tier === "state" ? "state" : "all-India"} shown</span>`;
-  let pct = "";
-  if (t && t.prior_avg) {
-    const p = (100 * (t.latest_avg - t.prior_avg) / t.prior_avg);
-    pct = `<span class="${p >= 0 ? "up" : "down"}">${p >= 0 ? "▲" : "▼"} ${Math.abs(p).toFixed(1)}%</span>`;
-  }
-  const audioUrl = j.audio_base64 ? "data:audio/wav;base64," + j.audio_base64 : null;
-  box.innerHTML = `
-    <div class="q">“${j.transcript}”
-      <div class="meta"><span class="tag">${j.language_code}</span>
-        ${j.crop ? `<span class="tag">🌱 ${j.crop}</span>` : ""}
-        <span class="tag">📍 ${j.district}</span></div></div>
-    <div class="a">
-      <div class="native">${j.spoken_text}</div>
-      ${j.english && j.english !== j.spoken_text ? `<div class="english">${j.english}</div>` : ""}
-      <div class="arow">
-        ${audioUrl ? `<button class="btn primary replay">🔊 Play answer</button>` : ""}
-        ${tierTag}
-      </div>
-      <div class="tiles">
-        <div class="tile"><div class="k">Rain · 7 days</div>
-          <div class="v">${fmt(w.rain_last_7_days_mm)} mm</div>
-          <div class="s">humidity ${fmt(w.today && w.today.humidity)}%</div></div>
-        ${t ? `<div class="tile"><div class="k">Latest price</div>
-          <div class="v">₹${fmt(t.latest_avg)} ${pct}</div>
-          <div class="s">wk avg ₹${fmt(t.prior_avg)} · /quintal</div>
-          ${sparkline(ev.price_rows)}</div>` : ""}
-        ${msp ? `<div class="tile"><div class="k">MSP ${msp.marketing_year}</div>
-          <div class="v">₹${fmt(msp.msp_per_quintal)}</div>
-          <div class="s">${msp.variety_note !== "-" ? msp.variety_note : msp.commodity} · indicative</div></div>` : ""}
-        ${(ev.crop_stage || [])[0] ? `<div class="tile"><div class="k">Crop stage</div>
-          <div class="v" style="font-size:.92rem">${ev.crop_stage[0].stage}</div>
-          <div class="s">water need: ${ev.crop_stage[0].water_need}</div></div>` : ""}
-      </div>
-      <div class="send">
-        <label>Send to farmer's WhatsApp</label>
-        <div class="row"><input type="tel" class="phone" placeholder="+91XXXXXXXXXX"
-          value="${localStorage.kcPhone || ""}">
-          <button class="btn primary wsend">Send ➤</button></div>
-        <div class="sendnote"></div>
-      </div>
-      <details><summary>EVIDENCE — every number, from Snowflake</summary>
-        <pre>${JSON.stringify(ev, null, 2)}</pre></details>
-    </div>`;
-  qa.prepend(box);
-  if (audioUrl) {
-    const player = new Audio(audioUrl);
-    player.play().catch(() => {});
-    box.querySelector(".replay").onclick = () => { player.currentTime = 0; player.play(); };
-  }
-  const sendBtn = box.querySelector(".wsend"), phone = box.querySelector(".phone"),
-        note = box.querySelector(".sendnote");
-  sendBtn.onclick = async () => {
-    const to = phone.value.trim();
-    if (!/^\+\d{10,14}$/.test(to)) { note.textContent = "Enter number as +91XXXXXXXXXX"; note.className = "sendnote err"; return; }
-    localStorage.kcPhone = to;
-    sendBtn.disabled = true; note.textContent = "Sending…"; note.className = "sendnote";
-    try {
-      const r = await fetch("/send", { method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({to, text: "🌾 Kisan Copilot:\n" + j.spoken_text}) });
-      const res = await r.json();
-      if (res.ok && !res.dry_run) { note.textContent = "✓ Sent on WhatsApp"; note.className = "sendnote ok"; }
-      else if (res.dry_run) { note.textContent = "Dry-run (Twilio creds not set) — payload built, not sent"; note.className = "sendnote"; }
-      else { note.textContent = res.error || "send failed"; note.className = "sendnote err"; }
-    } catch (e) { note.textContent = e.message; note.className = "sendnote err"; }
-    sendBtn.disabled = false;
-  };
-}
+$("micb").onclick = () => recording ? recStop() :
+  recStart().catch(e => { const th = addThinking(""); fail(th, "mic: " + e.message); });
+$("sendb").onclick = () => sendText($("ti").value);
+$("ti").addEventListener("keydown", e => { if (e.key === "Enter") sendText($("ti").value); });
+$("ti").addEventListener("input", () =>
+  $("sendb").classList.toggle("ready", !!$("ti").value.trim()));
 </script>
 </body>
 </html>

@@ -21,6 +21,7 @@ LANG_NAMES = {
     "kn-IN": "Kannada", "ml-IN": "Malayalam", "mr-IN": "Marathi",
     "bn-IN": "Bengali", "gu-IN": "Gujarati", "pa-IN": "Punjabi", "od-IN": "Odia",
 }
+NAME_CODES = {v: k for k, v in LANG_NAMES.items()}
 
 
 def _headers():

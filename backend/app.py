@@ -27,32 +27,6 @@ import snowflake_client
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Detect the crop from the transcript when the caller does not pass one.
-# Detection only — advice logic lives entirely in Snowflake.
-CROP_WORDS = {
-    "cotton": ["cotton", "kapas", "పత్తి", "कपास"],
-    "paddy": ["paddy", "rice", "dhan", "వరి", "ధాన్యం", "धान", "चावल"],
-    "chilli": ["chilli", "chili", "mirchi", "మిర్చి", "మిరప", "मिर्च"],
-    "maize": ["maize", "corn", "makka", "మొక్కజొన్న", "मक्का"],
-    "onion": ["onion", "pyaz", "ఉల్లి", "प्याज"],
-    "tomato": ["tomato", "టమాట", "टमाटर"],
-    "potato": ["potato", "aloo", "బంగాళదుంప", "आलू"],
-    "groundnut": ["groundnut", "peanut", "వేరుశనగ", "मूंगफली"],
-    "red gram": ["red gram", "tur", "arhar", "కంది", "अरहर", "तूर"],
-    "soybean": ["soybean", "soya", "సోయా", "सोयाबीन"],
-    "wheat": ["wheat", "gehu", "గోధుమ", "गेहूं", "गेहूँ"],
-    "apple": ["apple", "యాపిల్", "సేపు", "सेब"],
-}
-
-
-def detect_crop(text: str) -> str:
-    low = (text or "").lower()
-    for crop, words in CROP_WORDS.items():
-        if any(w in low for w in words):
-            return crop
-    return ""
-
-
 def load_env():
     env = REPO_ROOT / ".env"
     if env.exists():
@@ -72,19 +46,23 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
 
 class TextAsk(BaseModel):
     text: str
-    district: str = "Warangal"
+    district: str = ""       # optional — Snowflake extracts it from the message
     crop: str = ""
-    language_code: str = "en-IN"
+    language_code: str = ""  # optional — auto-detected when empty
 
 
 def _answer(transcript: str, language_code: str, district: str, crop: str,
             want_audio: bool = True) -> dict:
-    crop = crop or detect_crop(transcript)
-    language_name = sarvam.LANG_NAMES.get(language_code, "English")
+    # District/crop/language detection all happen inside ANSWER_FARMER.
+    language_name = sarvam.LANG_NAMES.get(language_code, "Auto") if language_code else "Auto"
 
     result = snowflake_client.answer_farmer(district, crop, transcript, language_name)
     if "error" in result:
         raise HTTPException(status_code=422, detail=result["error"])
+    district = result.get("district") or district
+    crop = result.get("crop") or crop
+    if not language_code:
+        language_code = sarvam.NAME_CODES.get(result.get("language"), "en-IN")
 
     english = result.get("english") or result.get("spoken") or ""
     if language_code.startswith("en"):
@@ -116,7 +94,7 @@ def _answer(transcript: str, language_code: str, district: str, crop: str,
 
 @app.post("/ask")
 async def ask_voice(audio: UploadFile = File(...),
-                    district: str = Form("Warangal"),
+                    district: str = Form(""),
                     crop: str = Form("")):
     transcript, language_code = sarvam.speech_to_text(
         await audio.read(), audio.filename or "audio.wav")

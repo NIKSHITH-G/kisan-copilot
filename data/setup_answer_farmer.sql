@@ -68,15 +68,83 @@ def price_query(session, pats, extra_where, binds):
                                "variety", "modal_price", "arrival_date"])
 
 
+# Deterministic crop spotting (incl. native scripts) — runs BEFORE the LLM
+# extraction because the crop list is closed and the LLM can misread scripts.
+CROP_WORDS = [
+    ("cotton", ["cotton", "kapas", "పత్తి", "कपास"]),
+    ("paddy", ["paddy", "rice", "dhan", "వరి", "ధాన్యం", "धान", "चावल"]),
+    ("chilli", ["chilli", "chili", "mirchi", "మిర్చి", "మిరప", "मिर्च"]),
+    ("maize", ["maize", "corn", "makka", "మొక్కజొన్న", "मक्का"]),
+    ("onion", ["onion", "pyaz", "ఉల్లి", "प्याज"]),
+    ("tomato", ["tomato", "టమాట", "टमाटर"]),
+    ("potato", ["potato", "aloo", "బంగాళదుంప", "आलू"]),
+    ("groundnut", ["groundnut", "peanut", "వేరుశనగ", "मूंगफली"]),
+    ("red gram", ["red gram", "tur dal", "arhar", "కంది", "अरहर"]),
+    ("soybean", ["soybean", "soya", "సోయా", "सोयाबीन"]),
+    ("wheat", ["wheat", "gehu", "గోధుమ", "गेहूं", "गेहूँ"]),
+    ("apple", ["apple", "యాపిల్", "सेब"]),
+]
+
+
+def detect_crop_words(question):
+    low = question.lower()
+    for crop_name, words in CROP_WORDS:
+        if any(w in low for w in words):
+            return crop_name
+    return ""
+
+
+def extract_entities(session, question):
+    """One COMPLETE call pulls district/crop/language out of the raw message
+    (any Indian language/script) — no UI field needed."""
+    prompt = ("Extract from this farmer message, which may be in Telugu, Hindi, "
+              "English or any Indian language: (1) the Indian district or city "
+              "mentioned, English spelling, empty string if none is mentioned; "
+              "(2) the crop or commodity mentioned, common English name, empty "
+              "if none; (3) the language of the message as one English word "
+              "(Telugu, Hindi, English, Tamil, ...).\n"
+              "Message: " + question + "\n"
+              'Respond with STRICT JSON only: {"district": "", "crop": "", "language": ""}')
+    raw = session.sql("SELECT SNOWFLAKE.CORTEX.COMPLETE(?, ?)",
+                      params=[MODEL, prompt]).collect()[0][0].strip()
+    if raw.startswith("```"):
+        raw = raw[raw.find("{"):raw.rfind("}") + 1]
+    try:
+        d = json.loads(raw)
+        return (str(d.get("district") or "").strip().title(),
+                str(d.get("crop") or "").strip(),
+                str(d.get("language") or "").strip().title())
+    except Exception:
+        return "", "", ""
+
+
 def main(session, district_name, crop_name, question, language):
-    district = (district_name or "Warangal").strip().title()
+    district = (district_name or "").strip().title()
     crop = (crop_name or "").strip()
-    language = (language or "English").strip().title()
+    language = (language or "").strip().title()
+
+    # Detect whatever the caller did not supply, from the message itself.
+    crop = crop or detect_crop_words(question)
+    if not district or not crop or language in ("", "Auto"):
+        ex_district, ex_crop, ex_language = extract_entities(session, question)
+        district = district or ex_district
+        crop = crop or ex_crop
+        if language in ("", "Auto"):
+            language = ex_language or "English"
+    fallback_note = None
+    if not district:
+        district, fallback_note = "Warangal", "no district mentioned - using default"
     pats = patterns_for(crop)
 
     # 1. Live weather (proc geocodes + caches + merges history).
     weather = json.loads(session.sql(
         "CALL AGRI.PUBLIC.GET_DISTRICT_WEATHER(?)", params=[district]).collect()[0][0])
+    if "error" in weather and district != "Warangal":
+        # Unrecognized place name from extraction — fall back rather than fail.
+        fallback_note = f"could not locate '{district}' - using Warangal"
+        district = "Warangal"
+        weather = json.loads(session.sql(
+            "CALL AGRI.PUBLIC.GET_DISTRICT_WEATHER(?)", params=[district]).collect()[0][0])
     if "error" in weather:
         return {"error": weather["error"], "district": district}
     state = (weather.get("resolved_as") or "").split(",")[-1].strip()
@@ -206,6 +274,8 @@ def main(session, district_name, crop_name, question, language):
         "agronomy": agronomy,
         "computed_hints": hints,
     }
+    if fallback_note:
+        evidence["district_note"] = fallback_note
 
     prompt = f"""You are a trusted crop advisor speaking to an Indian farmer over voice.
 
