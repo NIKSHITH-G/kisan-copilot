@@ -108,6 +108,137 @@ def ask_text(body: TextAsk):
     return _answer(body.text, body.language_code, body.district, body.crop)
 
 
+import time as _time
+
+_cache: dict = {}
+
+
+def _cached(key, ttl, fn):
+    now = _time.time()
+    hit = _cache.get(key)
+    if hit and now - hit[0] < ttl:
+        return hit[1]
+    val = fn()
+    _cache[key] = (now, val)
+    return val
+
+
+def _num(v):
+    return float(v) if v is not None else None
+
+
+@app.get("/prices")
+def prices(q: str = "", state: str = "", commodity: str = "", limit: int = 25):
+    """Live price browser: latest arrival per commodity+market (14-day window),
+    with a real trend vs. that market's own prior records. All figures come
+    straight from AGRI.PUBLIC.MANDI_PRICES — dates are true arrival dates."""
+    limit = max(1, min(int(limit), 50))
+
+    def run():
+        where, params = ["arrival_date >= CURRENT_DATE - 14"], []
+        if commodity:
+            where.append("commodity ILIKE %s"); params.append(f"%{commodity}%")
+        if state:
+            where.append("state ILIKE %s"); params.append(f"%{state}%")
+        if q:
+            where.append("(commodity ILIKE %s OR market ILIKE %s OR district ILIKE %s OR state ILIKE %s)")
+            params += [f"%{q}%"] * 4
+        rows = snowflake_client.query(f"""
+            SELECT commodity, variety, market, district, state,
+                   MAX_BY(modal_price, arrival_date) AS latest_price,
+                   TO_CHAR(MAX(arrival_date)) AS latest_date,
+                   COUNT(*) AS n,
+                   ARRAY_AGG(modal_price) WITHIN GROUP (ORDER BY arrival_date) AS series
+            FROM AGRI.PUBLIC.MANDI_PRICES
+            WHERE {' AND '.join(where)}
+            GROUP BY 1,2,3,4,5
+            ORDER BY MAX(arrival_date) DESC, latest_price DESC
+            LIMIT {limit}""", params)
+        import json as _json
+        out = []
+        for r in rows:
+            series = [_num(x) for x in _json.loads(r["series"])] if isinstance(r["series"], str) else [_num(x) for x in (r["series"] or [])]
+            latest = _num(r["latest_price"])
+            prior = series[:-1]
+            trend = (100 * (latest - sum(prior) / len(prior)) / (sum(prior) / len(prior))
+                     if prior and latest is not None else None)
+            out.append({"commodity": r["commodity"], "variety": r["variety"],
+                        "market": r["market"], "district": r["district"], "state": r["state"],
+                        "price": latest, "arrival_date": r["latest_date"],
+                        "trend_pct": round(trend, 1) if trend is not None else None,
+                        "series": series[-10:]})
+        return out
+    return _cached(("prices", q, state, commodity, limit), 120, run)
+
+
+@app.get("/guide")
+def guide(crop: str = "cotton"):
+    """Crop guide straight from the curated corpus + crop calendar."""
+    from datetime import datetime as _dt
+
+    def run():
+        chunks = snowflake_client.query(
+            """SELECT topic, region, content, source FROM AGRI.PUBLIC.ADVISORY_CHUNKS
+               WHERE crop ILIKE %s ORDER BY
+               CASE topic WHEN 'sowing_seeds' THEN 1 WHEN 'fertilizer' THEN 2
+                 WHEN 'irrigation' THEN 3 WHEN 'pests_diseases' THEN 4 ELSE 5 END""",
+            (f"%{crop}%",))
+        stages = snowflake_client.query(
+            """SELECT stage, region, stage_start_month, stage_end_month, water_need, notes
+               FROM AGRI.PUBLIC.CROP_CALENDAR WHERE crop ILIKE %s
+               ORDER BY stage_start_month""", (f"%{crop}%",))
+        month = _dt.now().month
+        for s in stages:
+            a, b = int(s["stage_start_month"]), int(s["stage_end_month"])
+            s["current"] = (a <= month <= b) if a <= b else (month >= a or month <= b)
+        msp = snowflake_client.query(
+            "SELECT variety_note, marketing_year, msp_per_quintal FROM AGRI.PUBLIC.MSP "
+            "WHERE commodity ILIKE %s", (f"%{crop}%",))
+        return {"crop": crop, "region": (chunks[0]["region"] if chunks else None),
+                "chunks": chunks, "stages": stages, "msp": msp}
+    return _cached(("guide", crop.lower()), 600, run)
+
+
+@app.get("/snapshot")
+def snapshot(district: str = "Warangal"):
+    """Real numbers for Home + Field Mode: national ticker, district weather
+    and arrivals, table counts, last pipeline run."""
+    def run():
+        ticker = snowflake_client.query("""
+            SELECT commodity, market, state, modal_price, TO_CHAR(arrival_date) AS d
+            FROM AGRI.PUBLIC.MANDI_PRICES
+            WHERE arrival_date >= CURRENT_DATE - 3
+              AND commodity ILIKE ANY ('tomato%','onion%','potato%','cotton%',
+                                       'paddy%','wheat%','maize%','chilli%')
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY SPLIT_PART(commodity,'(',1)
+                                       ORDER BY arrival_date DESC, modal_price DESC) = 1
+            ORDER BY d DESC LIMIT 5""")
+        weather = snowflake_client.query(
+            """SELECT TO_CHAR(date) AS d, temp_max, temp_min, rainfall_mm, humidity
+               FROM AGRI.PUBLIC.WEATHER WHERE district ILIKE %s
+               ORDER BY date DESC LIMIT 7""", (f"%{district}%",))
+        local = snowflake_client.query(
+            """SELECT commodity, market, modal_price, TO_CHAR(arrival_date) AS d
+               FROM AGRI.PUBLIC.MANDI_PRICES WHERE district ILIKE %s
+               ORDER BY arrival_date DESC, modal_price DESC LIMIT 3""", (f"%{district}%",))
+        stats = snowflake_client.query(
+            "SELECT COUNT(*) AS n_rows, COUNT(DISTINCT state) AS states, "
+            "TO_CHAR(MAX(arrival_date)) AS latest FROM AGRI.PUBLIC.MANDI_PRICES")[0]
+        log = snowflake_client.query(
+            "SELECT TO_CHAR(MAX(run_at)) AS run_at FROM AGRI.PUBLIC.REFRESH_LOG")
+        return {"district": district,
+                "ticker": [{**t, "modal_price": _num(t["modal_price"])} for t in ticker],
+                "weather": [{**w, "rainfall_mm": _num(w["rainfall_mm"]),
+                             "humidity": _num(w["humidity"]),
+                             "temp_max": _num(w["temp_max"])} for w in weather],
+                "rain_7d": round(sum(_num(w["rainfall_mm"]) or 0 for w in weather), 1),
+                "local_prices": [{**p, "modal_price": _num(p["modal_price"])} for p in local],
+                "stats": {"rows": int(stats["n_rows"]), "states": int(stats["states"]),
+                          "latest_arrival": stats["latest"]},
+                "last_refresh": (log[0]["run_at"] if log else None)}
+    return _cached(("snapshot", district.lower()), 120, run)
+
+
 class SendBody(BaseModel):
     to: str
     text: str

@@ -3,201 +3,547 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Kisan Copilot — voice crop advisory</title>
+<meta name="theme-color" content="#0a0d0b">
+<title>Kisan Copilot</title>
 <style>
   :root {
-    --bg: #0b0e0c; --bg-glow: rgba(47,174,96,.13);
-    --card: rgba(255,255,255,.045); --card-2: rgba(255,255,255,.07);
-    --border: rgba(255,255,255,.09);
-    --ink: #eef2ee; --ink-2: #a8b2a9; --ink-3: #6d776e;
-    --accent: #2fae60; --accent-soft: rgba(47,174,96,.15);
-    --data: #2fae60; --danger: #ef5350; --warn: #f0b429;
-    --user: rgba(93,160,255,.13);
+    --bg:#0a0d0b; --bg2:#101512; --card:#151b17; --card2:#1b221d;
+    --border:#242c26; --ink:#eef4ef; --ink2:#9aa79d; --ink3:#66736a;
+    --green:#22c55e; --green-dk:#15803d; --green-soft:rgba(34,197,94,.12);
+    --data:#2fae60; --red:#ef5350; --amber:#f0b429; --blue:#60a5fa;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
   }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #f5f9f6; --bg-glow: rgba(22,163,74,.09);
-      --card: #ffffff; --card-2: #f1f5f2; --border: #dfe7e1;
-      --ink: #17211a; --ink-2: #4f5e52; --ink-3: #8a968d;
-      --accent: #16a34a; --accent-soft: rgba(22,163,74,.11);
-      --data: #16a34a; --user: rgba(37,99,235,.08);
-    }
-  }
-  * { box-sizing: border-box; margin: 0; }
-  html, body { height: 100%; }
-  body {
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: var(--bg) radial-gradient(820px 420px at 50% -120px, var(--bg-glow), transparent 70%) fixed no-repeat;
-    color: var(--ink); line-height: 1.55; display: flex; flex-direction: column;
-  }
+  * { box-sizing:border-box; margin:0; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
+  body { font-family: system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg);
+         color:var(--ink); line-height:1.5; }
 
-  header {
-    position: sticky; top: 0; z-index: 20; backdrop-filter: blur(14px);
-    background: color-mix(in srgb, var(--bg) 78%, transparent);
-    border-bottom: 1px solid var(--border);
-  }
-  .hin { max-width: 760px; margin: 0 auto; padding: .6rem 1rem;
-         display: flex; align-items: center; gap: .65rem; }
-  .logo { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
-          font-size: 1.2rem; background: linear-gradient(135deg, #1d7a41, #2fae60);
-          box-shadow: 0 3px 14px rgba(47,174,96,.35); }
-  .brand b { font-size: 1.02rem; letter-spacing: -.01em; }
-  .brand small { display: block; font-size: .68rem; color: var(--ink-3); margin-top: -2px; }
-  .pill { font-size: .58rem; font-weight: 700; letter-spacing: .07em; padding: .13rem .45rem;
-          border-radius: 99px; background: var(--accent-soft); color: var(--accent);
-          vertical-align: 2px; }
-  .health { margin-left: auto; display: flex; align-items: center; gap: .4rem;
-            font-size: .7rem; color: var(--ink-3); white-space: nowrap; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); }
-  .dot.ok { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
-  .dot.bad { background: var(--danger); }
+  /* ---------- ticker ---------- */
+  .ticker { background:var(--bg2); border-bottom:1px solid var(--border);
+            font-family:var(--mono); font-size:.68rem; color:var(--green);
+            white-space:nowrap; overflow:hidden; padding:.35rem 0; }
+  .ticker span { display:inline-block; padding-left:100%;
+                 animation: tick 30s linear infinite; }
+  @keyframes tick { to { transform: translateX(-100%); } }
 
-  main { flex: 1; width: 100%; max-width: 760px; margin: 0 auto;
-         padding: 1rem 1rem 8.5rem; }
+  /* ---------- header ---------- */
+  header { position:sticky; top:0; z-index:30; background:rgba(10,13,11,.85);
+           backdrop-filter:blur(14px); border-bottom:1px solid var(--border); }
+  .hin { max-width:760px; margin:0 auto; padding:.55rem 1rem;
+         display:flex; align-items:center; gap:.6rem; }
+  .logo { width:34px; height:34px; border-radius:9px; display:grid; place-items:center;
+          font-size:1.05rem; background:var(--green); color:#052e12; }
+  .wordmark { font-weight:800; letter-spacing:.02em; font-size:1.02rem; }
+  .wordmark em { color:var(--green); font-style:normal; }
+  .distchip { margin-left:auto; display:flex; align-items:center; gap:.35rem;
+              font-family:var(--mono); font-size:.68rem; letter-spacing:.05em;
+              text-transform:uppercase; color:var(--ink2); background:var(--card);
+              border:1px solid var(--border); border-radius:99px; padding:.3rem .7rem;
+              cursor:pointer; }
+  .hdot { width:7px; height:7px; border-radius:50%; background:var(--ink3); flex:none; }
+  .hdot.ok { background:var(--green); box-shadow:0 0 7px var(--green); }
+  .hdot.bad { background:var(--red); }
 
-  .hero { text-align: center; padding: 2.2rem 0 1rem; }
-  .hero h1 { font-size: clamp(1.45rem, 5vw, 2rem); letter-spacing: -.02em; line-height: 1.22; }
-  .hero h1 span { background: linear-gradient(90deg, var(--accent), #7ed9a4);
-                  -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .hero p { color: var(--ink-2); font-size: .9rem; margin-top: .55rem; }
-  .badges { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; margin: 1rem 0 1.6rem; }
-  .badge { font-size: .68rem; color: var(--ink-2); border: 1px solid var(--border);
-           background: var(--card); border-radius: 99px; padding: .26rem .6rem; }
-  .examples { display: grid; gap: .5rem; max-width: 460px; margin: 0 auto; }
-  .ex { text-align: left; font-size: .88rem; padding: .65rem .9rem; cursor: pointer;
-        border: 1px solid var(--border); border-radius: 14px; background: var(--card);
-        color: var(--ink); transition: border-color .15s; font-family: inherit; }
-  .ex:hover { border-color: var(--accent); }
-  .ex small { display: block; color: var(--ink-3); font-size: .68rem; margin-top: .1rem; }
+  main { max-width:760px; margin:0 auto; padding:1rem 1rem 6.4rem; }
+  .screen { display:none; } .screen.on { display:block; }
+  h1 { font-size:1.55rem; letter-spacing:-.02em; line-height:1.25; margin:.6rem 0 1rem; }
+  .sub { color:var(--ink2); font-size:.85rem; }
 
-  .msg { margin-top: 1rem; display: flex; }
-  .msg.user { justify-content: flex-end; }
-  .bubble { max-width: 86%; padding: .65rem .9rem; border-radius: 16px; font-size: .95rem; }
-  .user .bubble { background: var(--user); border: 1px solid var(--border);
-                  border-bottom-right-radius: 5px; }
-  .meta { display: flex; gap: .35rem; margin-top: .45rem; flex-wrap: wrap; }
-  .tag { font-size: .64rem; font-weight: 600; padding: .12rem .5rem; border-radius: 99px;
-         background: var(--card-2); border: 1px solid var(--border); color: var(--ink-2); }
-  .tag.warn { color: var(--warn); border-color: var(--warn); }
+  /* ---------- home ---------- */
+  .askcard { margin-top:1rem; background:linear-gradient(160deg, var(--green), #15964a);
+             border-radius:20px; padding:1.6rem 1rem 1.4rem; text-align:center;
+             color:#04250f; cursor:pointer; box-shadow:0 10px 34px rgba(34,197,94,.25); }
+  .askcard .micbox { width:74px; height:74px; margin:0 auto .7rem; border-radius:18px;
+                     background:rgba(0,0,0,.16); display:grid; place-items:center; font-size:2rem; }
+  .askcard b { font-size:1.25rem; }
+  .askcard div.s { font-size:.85rem; opacity:.85; margin-top:.15rem; }
+  .strip { margin-top:.8rem; display:grid; gap:.45rem; }
+  .srow { display:flex; align-items:center; gap:.6rem; background:var(--card);
+          border:1px solid var(--border); border-left:3px solid var(--green);
+          border-radius:12px; padding:.55rem .8rem; font-family:var(--mono); font-size:.78rem; }
+  .srow .c { font-weight:700; }
+  .srow .d { margin-left:auto; color:var(--ink3); font-size:.68rem; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; margin-top:1rem; }
+  .tilebtn { background:var(--card); border:1px solid var(--border); border-radius:16px;
+             padding:1rem .9rem; text-align:left; cursor:pointer; color:var(--ink);
+             font-family:inherit; font-size:1rem; font-weight:650; }
+  .tilebtn .ic { width:42px; height:42px; border-radius:11px; display:grid; place-items:center;
+                 font-size:1.25rem; margin-bottom:.6rem; background:var(--green-soft); }
+  .tilebtn:hover { border-color:var(--green); }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:.6rem; margin-top:1rem; }
+  .stat { border:1px solid var(--border); border-left:3px solid var(--green);
+          border-radius:12px; padding:.6rem .7rem; background:var(--card); }
+  .stat b { font-family:var(--mono); font-size:1.1rem; color:var(--green); display:block; }
+  .stat span { font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink3); }
+  .stat.live { border-left-color:var(--amber); }
+  .stat.live b { color:var(--amber); }
 
-  .bot .bubble { background: var(--card); border: 1px solid var(--border);
-                 border-bottom-left-radius: 5px; width: 100%; max-width: 100%; padding: 1rem 1.05rem; }
-  .native { font-size: 1.06rem; white-space: pre-wrap; }
-  .english { font-size: .83rem; color: var(--ink-2); margin-top: .55rem; white-space: pre-wrap; }
-  .arow { display: flex; align-items: center; gap: .45rem; margin-top: .8rem; flex-wrap: wrap; }
-  .btn { border: 1px solid var(--border); background: transparent; color: var(--ink);
-         padding: .4rem .8rem; border-radius: 10px; font-size: .8rem; cursor: pointer;
-         font-family: inherit; }
-  .btn:hover { border-color: var(--accent); }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-  .btn:disabled { opacity: .55; cursor: wait; }
+  /* ---------- chat (ask) ---------- */
+  .examples { display:grid; gap:.5rem; margin-top:.8rem; }
+  .ex { text-align:left; font-size:.88rem; padding:.65rem .9rem; cursor:pointer;
+        border:1px solid var(--border); border-radius:14px; background:var(--card);
+        color:var(--ink); font-family:inherit; }
+  .ex:hover { border-color:var(--green); }
+  .ex small { display:block; color:var(--ink3); font-size:.68rem; margin-top:.1rem; }
+  .msg { margin-top:1rem; display:flex; }
+  .msg.user { justify-content:flex-end; }
+  .bubble { max-width:88%; padding:.65rem .9rem; border-radius:16px; font-size:.95rem; }
+  .user .bubble { background:#14202c; border:1px solid var(--border); border-bottom-right-radius:5px; }
+  .bot .bubble { background:var(--card); border:1px solid var(--border);
+                 border-bottom-left-radius:5px; width:100%; max-width:100%; padding:1rem 1.05rem; }
+  .meta { display:flex; gap:.35rem; margin-top:.45rem; flex-wrap:wrap; }
+  .tag { font-size:.62rem; font-weight:700; font-family:var(--mono); padding:.14rem .5rem;
+         border-radius:99px; background:var(--card2); border:1px solid var(--border);
+         color:var(--ink2); letter-spacing:.03em; }
+  .tag.warn { color:var(--amber); border-color:var(--amber); }
+  .native { font-size:1.06rem; white-space:pre-wrap; }
+  .english { font-size:.83rem; color:var(--ink2); margin-top:.55rem; white-space:pre-wrap; }
+  .arow { display:flex; align-items:center; gap:.45rem; margin-top:.8rem; flex-wrap:wrap; }
+  .btn { border:1px solid var(--border); background:transparent; color:var(--ink);
+         padding:.4rem .8rem; border-radius:10px; font-size:.8rem; cursor:pointer; font-family:inherit; }
+  .btn:hover { border-color:var(--green); }
+  .btn.primary { background:var(--green); border-color:var(--green); color:#04250f; font-weight:700; }
+  .btn:disabled { opacity:.55; cursor:wait; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr));
+           gap:.55rem; margin-top:.85rem; }
+  .tile { border:1px solid var(--border); border-radius:12px; padding:.55rem .65rem; background:var(--card2); }
+  .tile .k { font-size:.6rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink3); }
+  .tile .v { font-size:1.02rem; font-weight:650; margin-top:.12rem; font-family:var(--mono); }
+  .tile .s { font-size:.68rem; color:var(--ink2); }
+  .up { color:var(--green); } .down { color:var(--red); }
+  .spark svg { display:block; width:100%; height:38px; overflow:visible; margin-top:.3rem; }
+  .send { margin-top:.9rem; padding-top:.8rem; border-top:1px dashed var(--border); }
+  .send label { font-size:.64rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink3); }
+  .send .row { display:flex; gap:.5rem; margin-top:.35rem; }
+  .send input { flex:1; padding:.5rem .7rem; font-size:.88rem; border-radius:10px;
+                border:1px solid var(--border); background:transparent; color:var(--ink); }
+  .sendnote { font-size:.7rem; margin-top:.35rem; color:var(--ink3); }
+  .sendnote.ok { color:var(--green); } .sendnote.err { color:var(--red); }
+  details.ev { margin-top:.85rem; font-size:.78rem; }
+  details.ev summary { cursor:pointer; color:var(--ink2); }
+  details.ev pre { overflow-x:auto; background:var(--bg2); padding:.6rem;
+                   border-radius:10px; font-size:.66rem; margin-top:.45rem; }
+  .think { display:flex; align-items:center; gap:.6rem; color:var(--ink2); font-size:.85rem; }
+  .dots { display:inline-flex; gap:4px; }
+  .dots i { width:6px; height:6px; border-radius:50%; background:var(--green); animation:bnc 1.2s infinite; }
+  .dots i:nth-child(2){animation-delay:.15s} .dots i:nth-child(3){animation-delay:.3s}
+  @keyframes bnc { 30% { transform:translateY(-4px); opacity:.5; } }
+  .composer { position:fixed; left:0; right:0; bottom:3.6rem; z-index:25;
+              padding:.8rem 0 .5rem; background:linear-gradient(transparent, var(--bg) 45%); display:none; }
+  .composer.on { display:block; }
+  .cin { max-width:760px; margin:0 auto; padding:0 1rem; }
+  .bar { display:flex; align-items:center; gap:.45rem; background:var(--card);
+         border:1px solid var(--border); border-radius:999px; padding:.35rem .4rem .35rem 1rem; }
+  .bar.rec { border-color:var(--red); }
+  #ti { flex:1; border:none; background:transparent; color:var(--ink); font-size:.98rem;
+        outline:none; font-family:inherit; min-width:0; }
+  .cbtn { width:42px; height:42px; border-radius:50%; border:none; cursor:pointer;
+          font-size:1.1rem; display:grid; place-items:center; flex:none; color:#04250f; }
+  #micb { background:var(--green); }
+  #micb.rec { background:var(--red); color:#fff; animation:pulse 1.2s infinite; }
+  @keyframes pulse { 50% { box-shadow:0 0 0 9px rgba(239,83,80,.16); } }
+  #sendb { background:var(--card2); color:var(--ink2); border:1px solid var(--border); }
+  #sendb.ready { background:var(--green); color:#04250f; border-color:var(--green); }
 
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-           gap: .55rem; margin-top: .85rem; }
-  .tile { border: 1px solid var(--border); border-radius: 12px; padding: .55rem .65rem;
-          background: var(--card-2); }
-  .tile .k { font-size: .62rem; font-weight: 700; letter-spacing: .05em;
-             text-transform: uppercase; color: var(--ink-3); }
-  .tile .v { font-size: 1.02rem; font-weight: 650; margin-top: .12rem; }
-  .tile .s { font-size: .68rem; color: var(--ink-2); }
-  .up { color: var(--accent); } .down { color: var(--danger); }
-  .spark svg { display: block; width: 100%; height: 40px; overflow: visible; margin-top: .3rem; }
+  /* ---------- prices ---------- */
+  .search { display:flex; align-items:center; gap:.5rem; background:var(--card);
+            border:1px solid var(--border); border-radius:14px; padding:.55rem .8rem; margin-top:.6rem; }
+  .search input { flex:1; border:none; background:transparent; color:var(--ink);
+                  font-size:.95rem; outline:none; font-family:inherit; }
+  .chips { display:flex; gap:.4rem; overflow-x:auto; padding:.6rem 0 .2rem; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip { flex:none; font-family:var(--mono); font-size:.74rem; padding:.35rem .8rem;
+          border-radius:99px; cursor:pointer; border:1px solid var(--border);
+          background:var(--card); color:var(--ink2); }
+  .chip.on { background:var(--green); border-color:var(--green); color:#04250f; font-weight:700; }
+  .plist { display:grid; gap:.6rem; margin-top:.6rem; }
+  .pcard { display:grid; grid-template-columns:1fr auto; gap:.2rem .8rem;
+           background:var(--card); border:1px solid var(--border); border-left:3px solid var(--ink3);
+           border-radius:14px; padding:.75rem .9rem; }
+  .pcard.up { border-left-color:var(--green); } .pcard.dn { border-left-color:var(--red); }
+  .pcard.fl { border-left-color:var(--amber); }
+  .pc-name { font-weight:750; font-size:1.05rem; }
+  .pc-mkt { color:var(--ink2); font-size:.76rem; }
+  .pc-price { font-family:var(--mono); font-size:1.15rem; font-weight:700; color:var(--green); margin-top:.2rem; }
+  .pc-price small { color:var(--ink3); font-weight:400; font-size:.68rem; }
+  .pc-right { text-align:right; }
+  .pc-trend { font-family:var(--mono); font-size:.78rem; }
+  .pc-date { color:var(--ink3); font-family:var(--mono); font-size:.64rem; margin-top:.3rem; }
+  .pc-spark svg { width:96px; height:26px; overflow:visible; }
+  .empty { text-align:center; color:var(--ink3); font-size:.85rem; padding:2rem 0; }
+  .foot { color:var(--ink3); font-size:.68rem; text-align:center; margin-top:1rem; }
 
-  .send { margin-top: .9rem; padding-top: .8rem; border-top: 1px dashed var(--border); }
-  .send label { font-size: .66rem; font-weight: 700; letter-spacing: .05em;
-                text-transform: uppercase; color: var(--ink-3); }
-  .send .row { display: flex; gap: .5rem; margin-top: .35rem; }
-  .send input { flex: 1; padding: .5rem .7rem; font-size: .88rem; border-radius: 10px;
-                border: 1px solid var(--border); background: transparent; color: var(--ink); }
-  .sendnote { font-size: .7rem; margin-top: .35rem; color: var(--ink-3); }
-  .sendnote.ok { color: var(--accent); } .sendnote.err { color: var(--danger); }
+  /* ---------- guide ---------- */
+  .ghero { margin-top:.7rem; background:linear-gradient(160deg,#123a22,#0e2417);
+           border:1px solid var(--border); border-radius:16px; padding:1rem; }
+  .ghero .k { font-family:var(--mono); font-size:.64rem; color:var(--green);
+              letter-spacing:.1em; text-transform:uppercase; }
+  .ghero b { font-size:1.3rem; display:block; margin:.1rem 0; }
+  .ghero .s { font-size:.8rem; color:var(--ink2); }
+  .acc { margin-top:.6rem; border:1px solid var(--border); border-left:3px solid var(--green);
+         border-radius:14px; background:var(--card); overflow:hidden; }
+  .acc[data-t="fertilizer"] { border-left-color:var(--amber); }
+  .acc[data-t="irrigation"] { border-left-color:var(--blue); }
+  .acc[data-t="pests_diseases"] { border-left-color:var(--red); }
+  .acc summary { display:flex; align-items:center; gap:.7rem; padding:.8rem .9rem;
+                 cursor:pointer; list-style:none; font-weight:700; }
+  .acc summary::-webkit-details-marker { display:none; }
+  .acc .ic { width:36px; height:36px; border-radius:9px; display:grid; place-items:center;
+             background:var(--card2); font-size:1.05rem; flex:none; }
+  .acc small { display:block; font-weight:400; color:var(--ink3); font-size:.7rem; }
+  .acc .body { padding:0 .95rem .9rem; font-size:.88rem; color:var(--ink); }
+  .acc .src { margin-top:.5rem; font-size:.66rem; color:var(--ink3); font-family:var(--mono); }
+  .stages { display:flex; gap:.45rem; overflow-x:auto; margin-top:.8rem; padding-bottom:.3rem; scrollbar-width:none; }
+  .stg { flex:none; border:1px solid var(--border); border-radius:12px; padding:.5rem .7rem;
+         background:var(--card); min-width:120px; }
+  .stg.cur { border-color:var(--green); background:var(--green-soft); }
+  .stg b { font-size:.78rem; display:block; }
+  .stg span { font-family:var(--mono); font-size:.62rem; color:var(--ink3); }
+  .stg .cur-tag { color:var(--green); font-size:.6rem; font-weight:700; }
 
-  details { margin-top: .85rem; font-size: .78rem; }
-  summary { cursor: pointer; color: var(--ink-2); }
-  pre { overflow-x: auto; background: rgba(127,127,127,.09); padding: .6rem;
-        border-radius: 10px; font-size: .68rem; margin-top: .45rem; }
+  /* ---------- field mode ---------- */
+  #scr-field { background:#000; margin:-1rem -1rem 0; padding:1.2rem 1.2rem 7rem; min-height:82vh; }
+  .f-dist { font-family:var(--mono); font-size:.8rem; letter-spacing:.14em;
+            text-transform:uppercase; color:var(--amber); }
+  .f-big { font-size:clamp(2.2rem,9vw,3.2rem); font-weight:800; line-height:1.12;
+           letter-spacing:-.02em; margin:.3rem 0 1rem; }
+  .f-nums { display:grid; gap:.8rem; }
+  .f-num { border:2px solid #2a2a2a; border-radius:16px; padding:.9rem 1rem; }
+  .f-num .k { font-size:.9rem; color:#bdbdbd; }
+  .f-num .v { font-size:2rem; font-weight:800; font-family:var(--mono); color:#fff; }
+  .f-num .v em { font-style:normal; color:var(--green); }
+  .f-mic { display:block; margin:1.6rem auto; width:150px; height:150px; border-radius:50%;
+           border:none; background:var(--green); color:#04250f; font-size:3.4rem; cursor:pointer;
+           box-shadow:0 0 60px rgba(34,197,94,.4); }
+  .f-mic.rec { background:var(--red); color:#fff; animation:pulse 1.2s infinite; }
+  .f-status { text-align:center; font-size:1.15rem; color:#e8e8e8; min-height:1.6em; }
+  .f-answer { font-size:1.5rem; line-height:1.5; margin-top:1.2rem; white-space:pre-wrap; }
 
-  .think { display: flex; align-items: center; gap: .6rem; color: var(--ink-2); font-size: .85rem; }
-  .dots { display: inline-flex; gap: 4px; }
-  .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
-            animation: bnc 1.2s infinite; }
-  .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
-  @keyframes bnc { 30% { transform: translateY(-4px); opacity: .5; } }
+  /* ---------- overlays ---------- */
+  .overlay { position:fixed; inset:0; z-index:40; background:var(--bg); overflow-y:auto; display:none; }
+  .overlay.on { display:block; }
+  .ovin { max-width:760px; margin:0 auto; padding:1rem 1rem 3rem; }
+  .ovhead { display:flex; align-items:center; gap:.7rem; padding:.3rem 0 1rem; }
+  .back { width:38px; height:38px; border-radius:50%; border:1px solid var(--border);
+          background:var(--card); color:var(--ink); font-size:1.1rem; cursor:pointer; }
+  .ovhead b { font-size:1.15rem; color:var(--green); }
+  .how { display:grid; gap:.9rem; margin-top:.5rem; }
+  .hstep { display:flex; gap:.85rem; }
+  .hstep .ic { width:44px; height:44px; flex:none; border-radius:12px; border:1px solid var(--green);
+               display:grid; place-items:center; font-size:1.15rem; color:var(--green); background:var(--green-soft); }
+  .hstep b { color:var(--green); font-size:.95rem; }
+  .hstep p { font-size:.82rem; color:var(--ink2); }
+  .faq details { border:1px solid var(--border); border-radius:12px; background:var(--card);
+                 padding:.65rem .85rem; margin-top:.55rem; font-size:.85rem; }
+  .faq summary { cursor:pointer; font-weight:650; }
+  .faq p { margin-top:.45rem; color:var(--ink2); font-size:.8rem; }
+  .form { display:grid; gap:.9rem; margin-top:.6rem; }
+  .form label { font-size:.66rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink3); }
+  .form input, .form select { width:100%; margin-top:.3rem; padding:.6rem .8rem; font-size:.95rem;
+    border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--ink); font-family:inherit; }
 
-  .composer { position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
-              background: linear-gradient(transparent, var(--bg) 38%); padding: 1.4rem 0 max(env(safe-area-inset-bottom), .9rem); }
-  .cin { max-width: 760px; margin: 0 auto; padding: 0 1rem; }
-  .bar { display: flex; align-items: center; gap: .45rem; background: var(--card);
-         border: 1px solid var(--border); border-radius: 999px; padding: .4rem .45rem .4rem 1.1rem;
-         backdrop-filter: blur(14px); box-shadow: 0 8px 30px rgba(0,0,0,.25); }
-  .bar.rec { border-color: var(--danger); }
-  #ti { flex: 1; border: none; background: transparent; color: var(--ink);
-        font-size: .98rem; outline: none; font-family: inherit; min-width: 0; }
-  .cbtn { width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
-          font-size: 1.15rem; display: grid; place-items: center; flex: none; color: #fff; }
-  #micb { background: linear-gradient(150deg, #1d7a41, #2fae60); }
-  #micb.rec { background: linear-gradient(150deg, #b3261e, #ef5350); animation: pulse 1.2s infinite; }
-  @keyframes pulse { 50% { box-shadow: 0 0 0 9px rgba(239,83,80,.18); } }
-  #sendb { background: var(--card-2); color: var(--ink-2); border: 1px solid var(--border); }
-  #sendb.ready { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .hint { text-align: center; font-size: .66rem; color: var(--ink-3); margin-top: .45rem; }
+  /* ---------- bottom nav ---------- */
+  nav { position:fixed; bottom:0; left:0; right:0; z-index:30; background:rgba(10,13,11,.92);
+        backdrop-filter:blur(14px); border-top:1px solid var(--border);
+        padding-bottom:env(safe-area-inset-bottom); }
+  .nin { max-width:760px; margin:0 auto; display:grid; grid-template-columns:repeat(5,1fr); }
+  .nbtn { border:none; background:transparent; color:var(--ink3); font-family:var(--mono);
+          font-size:.62rem; letter-spacing:.04em; padding:.55rem 0 .6rem; cursor:pointer; }
+  .nbtn i { display:block; font-style:normal; font-size:1.15rem; margin-bottom:.1rem; }
+  .nbtn.on { color:var(--green); }
 </style>
 </head>
 <body>
 
+<div class="ticker"><span id="ticker">loading live arrivals…</span></div>
+
 <header><div class="hin">
-  <div class="logo">🌾</div>
-  <div class="brand"><b>Kisan Copilot</b> <span class="pill">BETA</span>
-    <small>voice + text crop advisory · Snowflake CoCo inside</small></div>
-  <div class="health"><span class="dot" id="hdot"></span><span id="htxt">connecting…</span></div>
+  <div class="logo">🚜</div>
+  <div class="wordmark">KISAN <em>COPILOT</em></div>
+  <button class="distchip" id="distchip"><span>📍</span><span id="distname">Warangal</span></button>
+  <span class="hdot" id="hdot" title="backend status"></span>
 </div></header>
 
 <main>
-  <section class="hero" id="hero">
-    <h1>Ask your farm anything.<br><span>Speak or type — any language.</span></h1>
-    <p>It finds your district and crop from what you say. Live prices, live weather,<br>
-       agronomy — reasoned inside Snowflake. Never an invented number.</p>
-    <div class="badges">
-      <span class="badge">❄️ Snowflake Cortex</span><span class="badge">🎙 Sarvam AI</span>
-      <span class="badge">📈 Agmarknet · live</span><span class="badge">⛅ Open-Meteo · live</span>
+  <!-- HOME -->
+  <section class="screen on" id="scr-home">
+    <h1>What does your farm need today?</h1>
+    <div class="askcard" id="askcoco">
+      <div class="micbox">🎙️</div>
+      <b>Ask CoCo</b>
+      <div class="s">speak or type — any language</div>
     </div>
-    <div class="examples">
+    <div class="strip" id="localstrip"></div>
+    <div class="grid2">
+      <button class="tilebtn" data-go="prices"><span class="ic">🏷️</span>Market Prices</button>
+      <button class="tilebtn" data-go="guide"><span class="ic">🌱</span>Crop Guide</button>
+      <button class="tilebtn" id="howbtn"><span class="ic">💡</span>How it works</button>
+      <button class="tilebtn" id="farmbtn"><span class="ic">🏡</span>My Farm</button>
+    </div>
+    <div class="stats" id="stats"></div>
+    <p class="foot" id="homefoot"></p>
+  </section>
+
+  <!-- ASK -->
+  <section class="screen" id="scr-ask">
+    <h1 style="font-size:1.2rem">Ask CoCo <span class="sub" style="font-size:.8rem">— it finds your district & crop from what you say</span></h1>
+    <div class="examples" id="examples">
       <button class="ex">పది రోజులుగా వాన లేదు, వరంగల్ లో నా పత్తికి నీళ్లు పెట్టాలా?<small>Telugu · cotton · Warangal</small></button>
       <button class="ex">मेरा गेहूं करनाल में बेचूं या रुकूं?<small>Hindi · wheat · Karnal</small></button>
       <button class="ex">Should I sell my chilli now? I am in Khammam.<small>English · chilli · Khammam</small></button>
       <button class="ex">What is the apple price in Warangal today?<small>tests the no-invented-price guardrail</small></button>
     </div>
+    <div id="thread"></div>
   </section>
-  <div id="thread"></div>
+
+  <!-- PRICES -->
+  <section class="screen" id="scr-prices">
+    <h1 style="font-size:1.2rem">Market Prices <span class="sub" style="font-size:.78rem">— national Agmarknet, latest arrivals</span></h1>
+    <div class="search">🔍<input id="pq" placeholder="Search crop, market or district"></div>
+    <div class="chips" id="pstates"></div>
+    <div class="chips" id="pcrops"></div>
+    <div class="plist" id="plist"><div class="empty">loading…</div></div>
+    <p class="foot">Full national snapshot, refreshed twice daily inside Snowflake.<br>Dates shown are true mandi arrival dates.</p>
+  </section>
+
+  <!-- GUIDE -->
+  <section class="screen" id="scr-guide">
+    <h1 style="font-size:1.2rem">Crop Guide <span class="sub" style="font-size:.78rem">— curated PJTSAU/ICAR corpus</span></h1>
+    <div class="chips" id="gcrops"></div>
+    <div id="gbody"><div class="empty">loading…</div></div>
+    <p class="foot">Same corpus the copilot retrieves via Cortex Search.<br>Dosages are indicative — confirm with your local agriculture officer.</p>
+  </section>
+
+  <!-- FIELD -->
+  <section class="screen" id="scr-field">
+    <div class="f-dist" id="fdist">FIELD MODE · WARANGAL</div>
+    <div class="f-big">Today on<br>your farm</div>
+    <div class="f-nums" id="fnums"></div>
+    <button class="f-mic" id="fmic">🎤</button>
+    <div class="f-status" id="fstatus">Tap and ask</div>
+    <div class="f-answer" id="fanswer"></div>
+  </section>
 </main>
 
-<div class="composer"><div class="cin">
+<!-- composer (ask tab only) -->
+<div class="composer" id="composer"><div class="cin">
   <div class="bar" id="bar">
     <input id="ti" placeholder="Type in any language… or tap the mic" autocomplete="off">
     <button class="cbtn" id="sendb" title="Send">➤</button>
-    <button class="cbtn" id="micb" title="Hold a voice question">🎤</button>
+    <button class="cbtn" id="micb" title="Voice question">🎤</button>
   </div>
-  <div class="hint" id="hint">Mic: tap to talk, tap again to finish · answers are spoken back</div>
 </div></div>
+
+<!-- overlays -->
+<div class="overlay" id="ov-how"><div class="ovin">
+  <div class="ovhead"><button class="back" data-close="ov-how">←</button><b>How it works</b></div>
+  <div class="how">
+    <div class="hstep"><span class="ic">🎙</span><div><b>You speak — or type</b>
+      <p>Ask in your own language, like you would ask a neighbour. Telugu, Hindi, English and more (Sarvam AI speech).</p></div></div>
+    <div class="hstep"><span class="ic">🧭</span><div><b>It understands</b>
+      <p>Your district, crop and language are detected from the question itself — nothing to fill in.</p></div></div>
+    <div class="hstep"><span class="ic">❄️</span><div><b>Snowflake reasons</b>
+      <p>A Cortex agent queries live tables — national mandi prices, your district's weather, the crop calendar, the MSP table — and retrieves agronomy via Cortex Search.</p></div></div>
+    <div class="hstep"><span class="ic">🔒</span><div><b>Grounded numbers only</b>
+      <p>Every figure comes from a query. If your mandi has no data, it says so and names the nearest one that does. It never invents a price.</p></div></div>
+    <div class="hstep"><span class="ic">🔊</span><div><b>Spoken answer + WhatsApp</b>
+      <p>Three short recommendations, spoken back in your language, with the evidence attached — and one tap sends it to a phone.</p></div></div>
+  </div>
+  <div class="stats" id="howstats" style="margin-top:1.2rem"></div>
+  <h1 style="font-size:1.05rem; margin-top:1.6rem">FAQ</h1>
+  <div class="faq">
+    <details><summary>Where does the data come from?</summary>
+      <p>Prices: the government Agmarknet daily feed (data.gov.in), full national snapshot pulled twice a day by a Snowflake task. Weather: Open-Meteo, on demand for any Indian district. Agronomy: a curated corpus distilled from public PJTSAU/ICAR package-of-practices material.</p></details>
+    <details><summary>How fresh is it?</summary>
+      <p>Prices refresh at 13:30 and 18:30 IST daily. Cards always show the true mandi arrival date, never a vague "updated X ago".</p></details>
+    <details><summary>Which languages work?</summary>
+      <p>The demo speaks and understands Telugu, Hindi and English via Sarvam AI; the same pipeline extends to India's 22 scheduled languages (e.g. via Bhashini).</p></details>
+    <details><summary>Is this official agricultural advice?</summary>
+      <p>No. Dosages and MSP figures are indicative and source-labelled. Always confirm chemicals and doses with your local agriculture officer.</p></details>
+    <details><summary>What if there is no price for my crop here?</summary>
+      <p>It tells you exactly that, shows when your mandi last reported, and quotes the nearest market that has real data — clearly labelled as not local.</p></details>
+  </div>
+</div></div>
+
+<div class="overlay" id="ov-farm"><div class="ovin">
+  <div class="ovhead"><button class="back" data-close="ov-farm">←</button><b>My Farm</b></div>
+  <p class="sub">Saved on this device. Used for the Home strip, Field Mode numbers and WhatsApp sending — the copilot itself always listens to your question first.</p>
+  <div class="form">
+    <div><label>District</label><input id="f-district" placeholder="e.g. Warangal"></div>
+    <div><label>Main crop</label><select id="f-crop">
+      <option>cotton</option><option>paddy</option><option>chilli</option><option>maize</option>
+      <option>onion</option><option>tomato</option><option>potato</option><option>groundnut</option>
+      <option>red gram</option><option>soybean</option><option>wheat</option></select></div>
+    <div><label>WhatsApp number</label><input id="f-phone" placeholder="+91XXXXXXXXXX"></div>
+    <button class="btn primary" id="f-save" style="padding:.7rem">Save</button>
+  </div>
+</div></div>
+
+<nav><div class="nin">
+  <button class="nbtn on" data-tab="home"><i>🏠</i>Home</button>
+  <button class="nbtn" data-tab="ask"><i>💬</i>Ask</button>
+  <button class="nbtn" data-tab="prices"><i>🏷️</i>Prices</button>
+  <button class="nbtn" data-tab="guide"><i>🌱</i>Guide</button>
+  <button class="nbtn" data-tab="field"><i>🚜</i>Field</button>
+</div></nav>
 
 <script>
 const $ = id => document.getElementById(id);
-const thread = $("thread");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = n => n == null ? "—" : Number(n).toLocaleString("en-IN");
+const farm = JSON.parse(localStorage.kcFarm || '{"district":"Warangal","crop":"cotton","phone":""}');
 
+/* ---------- tabs & overlays ---------- */
+let tab = "home";
+function go(t) {
+  tab = t;
+  document.querySelectorAll(".screen").forEach(s => s.classList.toggle("on", s.id === "scr-" + t));
+  document.querySelectorAll(".nbtn").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  $("composer").classList.toggle("on", t === "ask");
+  if (t === "prices" && !pricesLoaded) loadPrices();
+  if (t === "guide" && !guideLoaded) loadGuide(farm.crop || "cotton");
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll(".nbtn").forEach(b => b.onclick = () => go(b.dataset.tab));
+document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
+$("askcoco").onclick = () => go("ask");
+$("howbtn").onclick = () => $("ov-how").classList.add("on");
+$("farmbtn").onclick = $("distchip").onclick = () => {
+  $("f-district").value = farm.district; $("f-crop").value = farm.crop || "cotton";
+  $("f-phone").value = farm.phone || "";
+  $("ov-farm").classList.add("on");
+};
+document.querySelectorAll("[data-close]").forEach(b =>
+  b.onclick = () => $(b.dataset.close).classList.remove("on"));
+$("f-save").onclick = () => {
+  farm.district = $("f-district").value.trim() || "Warangal";
+  farm.crop = $("f-crop").value; farm.phone = $("f-phone").value.trim();
+  localStorage.kcFarm = JSON.stringify(farm);
+  if (farm.phone) localStorage.kcPhone = farm.phone;
+  $("ov-farm").classList.remove("on");
+  applyFarm(); loadSnapshot();
+};
+function applyFarm() {
+  $("distname").textContent = farm.district;
+  $("fdist").textContent = "FIELD MODE · " + farm.district.toUpperCase();
+}
+applyFarm();
+
+/* ---------- health + snapshot (all real numbers) ---------- */
 fetch("/health").then(r => r.json()).then(h => {
-  const ok = h.snowflake && h.sarvam_key;
-  $("hdot").className = "dot " + (ok ? "ok" : "bad");
-  $("htxt").textContent = ok ? "Snowflake · live" : "backend degraded";
-}).catch(() => { $("hdot").className = "dot bad"; $("htxt").textContent = "backend offline"; });
+  $("hdot").className = "hdot " + (h.snowflake && h.sarvam_key ? "ok" : "bad");
+}).catch(() => $("hdot").className = "hdot bad");
 
+function loadSnapshot() {
+  fetch("/snapshot?district=" + encodeURIComponent(farm.district)).then(r => r.json()).then(s => {
+    const tk = s.ticker.map(t =>
+      `${esc(t.commodity)}: ₹${fmt(t.modal_price)} (${esc(t.state)}, arrivals ${t.d})`).join("  ·  ");
+    $("ticker").textContent = tk ? "LIVE ARRIVALS  ·  " + tk : "no arrivals loaded yet";
+    $("localstrip").innerHTML = s.local_prices.map(p => `<div class="srow">
+      <span>📈</span><span class="c">${esc(p.commodity)}</span>
+      <span>₹${fmt(p.modal_price)}/qtl · ${esc(p.market)}</span>
+      <span class="d">arrivals ${p.d}</span></div>`).join("")
+      || `<div class="srow"><span>ℹ️</span><span>No recent arrivals recorded for ${esc(s.district)} — ask CoCo for the nearest market.</span></div>`;
+    const st = `<div class="stat"><b>${fmt(s.stats.rows)}</b><span>price rows</span></div>
+      <div class="stat"><b>${s.stats.states}</b><span>states</span></div>
+      <div class="stat live"><b>${s.stats.latest_arrival ? s.stats.latest_arrival.slice(5) : "—"}</b><span>latest arrivals</span></div>`;
+    $("stats").innerHTML = st; $("howstats").innerHTML = st;
+    $("homefoot").textContent = s.last_refresh
+      ? `Pipeline last ran ${s.last_refresh.slice(0, 16)} (runs 13:30 & 18:30 IST inside Snowflake).` : "";
+    $("fnums").innerHTML = `
+      <div class="f-num"><div class="k">Rain, last 7 days — ${esc(s.district)}</div>
+        <div class="v"><em>${fmt(s.rain_7d)}</em> mm</div></div>
+      ${s.weather[0] ? `<div class="f-num"><div class="k">Today · max temp / humidity</div>
+        <div class="v">${fmt(s.weather[0].temp_max)}° / ${fmt(s.weather[0].humidity)}%</div></div>` : ""}
+      ${s.local_prices[0] ? `<div class="f-num"><div class="k">${esc(s.local_prices[0].commodity)} · ${esc(s.local_prices[0].market)} · ${s.local_prices[0].d}</div>
+        <div class="v">₹<em>${fmt(s.local_prices[0].modal_price)}</em>/qtl</div></div>` : ""}`;
+  }).catch(() => { $("ticker").textContent = "backend offline"; });
+}
+loadSnapshot();
+
+/* ---------- prices tab ---------- */
+let pricesLoaded = false, pState = "", pCrop = "", pT;
+const STATES = ["All","Telangana","Andhra Pradesh","Maharashtra","Uttar Pradesh","Tamil Nadu","Himachal Pradesh","Madhya Pradesh","Punjab"];
+const PCROPS = ["All","Cotton","Paddy","Chilli","Onion","Tomato","Potato","Wheat","Maize"];
+function chipRow(el, items, cur, cb) {
+  el.innerHTML = items.map(x =>
+    `<button class="chip ${x === cur || (x === "All" && !cur) ? "on" : ""}">${x}</button>`).join("");
+  [...el.children].forEach((c, i) => c.onclick = () => cb(items[i] === "All" ? "" : items[i]));
+}
+function trendSpark(series, cls) {
+  if (!series || series.length < 3) return "";
+  const min = Math.min(...series), max = Math.max(...series), span = (max - min) || 1;
+  const W = 90, H = 22;
+  const pts = series.map((y, i) =>
+    `${(i * W / (series.length - 1)).toFixed(1)},${(H - (y - min) / span * H).toFixed(1)}`).join(" ");
+  const col = cls === "up" ? "var(--green)" : cls === "dn" ? "var(--red)" : "var(--ink3)";
+  return `<div class="pc-spark"><svg viewBox="-2 -3 ${W + 4} ${H + 6}" preserveAspectRatio="none">
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+}
+function loadPrices() {
+  pricesLoaded = true;
+  chipRow($("pstates"), STATES, pState, v => { pState = v; loadPrices(); });
+  chipRow($("pcrops"), PCROPS, pCrop, v => { pCrop = v; loadPrices(); });
+  $("plist").innerHTML = `<div class="empty">loading live prices…</div>`;
+  const q = new URLSearchParams({q: $("pq").value.trim(), state: pState, commodity: pCrop});
+  fetch("/prices?" + q).then(r => r.json()).then(rows => {
+    if (!rows.length) { $("plist").innerHTML = `<div class="empty">No arrivals matching that in the last 14 days — that's the honest answer, not a blank chart.</div>`; return; }
+    $("plist").innerHTML = rows.map(r => {
+      const cls = r.trend_pct == null ? "fl" : r.trend_pct > 1 ? "up" : r.trend_pct < -1 ? "dn" : "fl";
+      const tr = r.trend_pct == null ? `<span style="color:var(--ink3)">first record</span>`
+        : `<span class="${r.trend_pct >= 0 ? "up" : "down"}">${r.trend_pct >= 0 ? "↗" : "↘"} ${Math.abs(r.trend_pct)}%</span>`;
+      return `<div class="pcard ${cls}">
+        <div><div class="pc-name">${esc(r.commodity)}</div>
+          <div class="pc-mkt">${esc(r.market)}, ${esc(r.district)} · ${esc(r.state)}</div>
+          <div class="pc-price">₹${fmt(r.price)} <small>/quintal</small></div></div>
+        <div class="pc-right"><div class="pc-trend">${tr}</div>
+          ${trendSpark(r.series, cls)}<div class="pc-date">arrivals ${r.arrival_date}</div></div>
+      </div>`; }).join("");
+  }).catch(e => $("plist").innerHTML = `<div class="empty">⚠︎ ${esc(e.message)}</div>`);
+}
+$("pq").addEventListener("input", () => { clearTimeout(pT); pT = setTimeout(loadPrices, 450); });
+
+/* ---------- guide tab ---------- */
+let guideLoaded = false;
+const GCROPS = ["cotton","paddy","chilli","maize","onion","tomato","potato","groundnut","red gram","soybean","wheat"];
+const TOPIC_META = {
+  sowing_seeds: ["📄","Sowing & Seeds"], fertilizer: ["⚗️","Fertilizer"],
+  irrigation: ["💧","Irrigation"], pests_diseases: ["🐛","Pests & Diseases"],
+  harvest_market: ["🛒","Harvest & Market"] };
+const MONTHS = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function loadGuide(crop) {
+  guideLoaded = true;
+  chipRow($("gcrops"), GCROPS.map(c => c[0].toUpperCase() + c.slice(1)), crop[0].toUpperCase() + crop.slice(1),
+          v => loadGuide((v || "cotton").toLowerCase()));
+  $("gbody").innerHTML = `<div class="empty">loading…</div>`;
+  fetch("/guide?crop=" + encodeURIComponent(crop)).then(r => r.json()).then(g => {
+    const stages = g.stages.map(s => `<div class="stg ${s.current ? "cur" : ""}">
+      <b>${esc(s.stage)}</b><span>${MONTHS[s.stage_start_month]}–${MONTHS[s.stage_end_month]} · water: ${esc(s.water_need)}</span>
+      ${s.current ? `<div class="cur-tag">● NOW</div>` : ""}</div>`).join("");
+    const msp = g.msp.length ? `<div class="s" style="margin-top:.4rem">MSP ${esc(g.msp[0].marketing_year)} (indicative): ` +
+      g.msp.map(m => `₹${fmt(m.msp_per_quintal)}${m.variety_note !== "-" ? " (" + esc(m.variety_note) + ")" : ""}`).join(" · ") + `</div>` : "";
+    $("gbody").innerHTML = `
+      <div class="ghero"><span class="k">Region: ${esc(g.region || "—")}</span>
+        <b>${esc(crop[0].toUpperCase() + crop.slice(1))} Guide</b>
+        <div class="s">From the curated corpus the copilot itself retrieves.</div>${msp}</div>
+      <div class="stages">${stages || ""}</div>
+      ${g.chunks.map((c, i) => { const [ic, name] = TOPIC_META[c.topic] || ["📘", c.topic];
+        return `<details class="acc" data-t="${esc(c.topic)}" ${i === 0 ? "open" : ""}>
+          <summary><span class="ic">${ic}</span><span>${name}<small>${esc(c.region)}</small></span></summary>
+          <div class="body">${esc(c.content)}<div class="src">source: ${esc(c.source)}</div></div>
+        </details>`; }).join("")}`;
+  }).catch(e => $("gbody").innerHTML = `<div class="empty">⚠︎ ${esc(e.message)}</div>`);
+}
+
+/* ---------- chat ---------- */
+const thread = $("thread");
+let busy = false;
 document.querySelectorAll(".ex").forEach(b =>
   b.onclick = () => sendText(b.childNodes[0].textContent.trim()));
-
-const fmt = n => n == null ? "—" : Number(n).toLocaleString("en-IN");
-const esc = s => (s || "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function scrollBottom() { requestAnimationFrame(() => window.scrollTo({top: document.body.scrollHeight, behavior: "smooth"})); }
 function addUser(text) {
-  $("hero").style.display = "none";
+  $("examples").style.display = "none";
   const el = document.createElement("div");
   el.className = "msg user"; el.innerHTML = `<div class="bubble">${esc(text)}</div>`;
   thread.appendChild(el); scrollBottom(); return el;
@@ -206,40 +552,41 @@ function addThinking(label) {
   const el = document.createElement("div");
   el.className = "msg bot";
   el.innerHTML = `<div class="bubble"><div class="think">
-    <span class="dots"><i></i><i></i><i></i></span><span class="tl">${label}</span></div></div>`;
+    <span class="dots"><i></i><i></i><i></i></span><span class="tl">${esc(label)}</span></div></div>`;
   thread.appendChild(el); scrollBottom();
   const tl = el.querySelector(".tl");
-  const stages = ["Snowflake reasoning — live weather, prices, agronomy…",
-                  "Composing advice…", "Translating & speaking…"];
+  const stages = ["Snowflake reasoning — live weather, prices, agronomy…", "Composing advice…", "Translating & speaking…"];
   let i = 0;
   const t = setInterval(() => { if (i < stages.length) tl.textContent = stages[i++]; }, 9000);
   el.stop = () => clearInterval(t);
   return el;
 }
-
-function sparkline(rows) {
+function bigSpark(rows) {
   if (!rows || rows.length < 3) return "";
-  const pts = [...rows].reverse();
-  const ys = pts.map(p => +p.modal_price);
+  const pts = [...rows].reverse(), ys = pts.map(p => +p.modal_price);
   const min = Math.min(...ys), max = Math.max(...ys), span = (max - min) || 1;
-  const W = 130, H = 32;
+  const W = 130, H = 30;
   const xy = i => [i * W / (pts.length - 1), H - ((ys[i] - min) / span) * H];
   const path = ys.map((_, i) => xy(i).map(v => v.toFixed(1)).join(",")).join(" ");
   const [lx, ly] = xy(pts.length - 1);
   const hits = pts.map((p, i) => { const [x, y] = xy(i);
     return `<circle cx="${x}" cy="${y}" r="9" fill="transparent"><title>₹${fmt(p.modal_price)} · ${esc(p.market)} · ${p.arrival_date}</title></circle>`; }).join("");
-  return `<div class="spark" role="img" aria-label="price trend, last ${pts.length} records">
-    <svg viewBox="-4 -6 ${W + 8} ${H + 12}" preserveAspectRatio="none">
+  return `<div class="spark"><svg viewBox="-4 -6 ${W + 8} ${H + 12}" preserveAspectRatio="none">
     <polyline points="${path}" fill="none" stroke="var(--data)" stroke-width="2"
       stroke-linecap="round" stroke-linejoin="round"/>
     <circle cx="${lx}" cy="${ly}" r="3" fill="var(--data)"/>${hits}</svg></div>`;
 }
-
-function renderAnswer(j) {
+function renderAnswer(j, intoField) {
+  if (intoField) {
+    $("fanswer").textContent = j.spoken_text;
+    $("fstatus").textContent = "Answered — " + esc(j.district);
+    if (j.audio_base64) new Audio("data:audio/wav;base64," + j.audio_base64).play().catch(() => {});
+    return;
+  }
   const ev = j.evidence || {}, w = ev.weather || {}, t = ev.price_trend, msp = (ev.msp || [])[0];
   const tier = ev.price_tier_used;
-  const tierTag = tier === "district" ? `<span class="tag">🏪 local mandi</span>`
-    : `<span class="tag warn">⚠︎ no local price — ${tier === "state" ? "state" : "all-India"} shown</span>`;
+  const tierTag = tier === "district" ? `<span class="tag">🏪 LOCAL MANDI</span>`
+    : `<span class="tag warn">⚠︎ NO LOCAL PRICE — ${tier === "state" ? "STATE" : "ALL-INDIA"} SHOWN</span>`;
   const noteTag = ev.district_note ? `<span class="tag warn">📍 ${esc(ev.district_note)}</span>` : "";
   let pct = "";
   if (t && t.prior_avg) {
@@ -249,33 +596,28 @@ function renderAnswer(j) {
   const el = document.createElement("div");
   el.className = "msg bot";
   el.innerHTML = `<div class="bubble">
-    <div class="meta" style="margin:0 0 .6rem">
-      <span class="tag">📍 ${esc(j.district)}</span>
-      ${j.crop ? `<span class="tag">🌱 ${esc(j.crop)}</span>` : ""}
+    <div class="meta" style="margin:0 0 .6rem"><span class="tag">📍 ${esc(j.district).toUpperCase()}</span>
+      ${j.crop ? `<span class="tag">🌱 ${esc(j.crop).toUpperCase()}</span>` : ""}
       <span class="tag">${esc(j.language_code)}</span>${tierTag}${noteTag}</div>
     <div class="native">${esc(j.spoken_text)}</div>
     ${j.english && j.english !== j.spoken_text ? `<div class="english">${esc(j.english)}</div>` : ""}
     <div class="arow">${j.audio_base64 ? `<button class="btn primary replay">🔊 Play</button>` : ""}</div>
     <div class="tiles">
-      <div class="tile"><div class="k">Rain · 7 days</div>
-        <div class="v">${fmt(w.rain_last_7_days_mm)} mm</div>
+      <div class="tile"><div class="k">Rain · 7 days</div><div class="v">${fmt(w.rain_last_7_days_mm)} mm</div>
         <div class="s">humidity ${fmt(w.today && w.today.humidity)}%</div></div>
-      ${t ? `<div class="tile"><div class="k">Latest price</div>
-        <div class="v">₹${fmt(t.latest_avg)} ${pct}</div>
-        <div class="s">wk avg ₹${fmt(t.prior_avg)} · /quintal</div>${sparkline(ev.price_rows)}</div>` : ""}
-      ${msp ? `<div class="tile"><div class="k">MSP ${esc(msp.marketing_year)}</div>
-        <div class="v">₹${fmt(msp.msp_per_quintal)}</div>
+      ${t ? `<div class="tile"><div class="k">Latest price</div><div class="v">₹${fmt(t.latest_avg)} ${pct}</div>
+        <div class="s">wk avg ₹${fmt(t.prior_avg)} · /quintal</div>${bigSpark(ev.price_rows)}</div>` : ""}
+      ${msp ? `<div class="tile"><div class="k">MSP ${esc(msp.marketing_year)}</div><div class="v">₹${fmt(msp.msp_per_quintal)}</div>
         <div class="s">${esc(msp.variety_note !== "-" ? msp.variety_note : msp.commodity)} · indicative</div></div>` : ""}
       ${(ev.crop_stage || [])[0] ? `<div class="tile"><div class="k">Crop stage</div>
-        <div class="v" style="font-size:.9rem">${esc(ev.crop_stage[0].stage)}</div>
+        <div class="v" style="font-size:.9rem; font-family:inherit">${esc(ev.crop_stage[0].stage)}</div>
         <div class="s">water need: ${esc(ev.crop_stage[0].water_need)}</div></div>` : ""}
     </div>
     <div class="send"><label>Send to farmer's WhatsApp</label>
-      <div class="row"><input type="tel" class="phone" placeholder="+91XXXXXXXXXX"
-        value="${localStorage.kcPhone || ""}">
+      <div class="row"><input type="tel" class="phone" placeholder="+91XXXXXXXXXX" value="${esc(localStorage.kcPhone || "")}">
         <button class="btn primary wsend">Send ➤</button></div>
       <div class="sendnote"></div></div>
-    <details><summary>EVIDENCE — every number, from Snowflake</summary>
+    <details class="ev"><summary>EVIDENCE — every number, from Snowflake</summary>
       <pre>${esc(JSON.stringify(ev, null, 2))}</pre></details>
   </div>`;
   thread.appendChild(el);
@@ -284,15 +626,13 @@ function renderAnswer(j) {
     player.play().catch(() => {});
     el.querySelector(".replay").onclick = () => { player.currentTime = 0; player.play(); };
   }
-  const btn = el.querySelector(".wsend"), phone = el.querySelector(".phone"),
-        note = el.querySelector(".sendnote");
+  const btn = el.querySelector(".wsend"), phone = el.querySelector(".phone"), note = el.querySelector(".sendnote");
   btn.onclick = async () => {
     const to = phone.value.trim();
     if (!/^\+\d{10,14}$/.test(to)) { note.textContent = "Number format: +91XXXXXXXXXX"; note.className = "sendnote err"; return; }
-    localStorage.kcPhone = to; btn.disabled = true;
-    note.textContent = "Sending…"; note.className = "sendnote";
+    localStorage.kcPhone = to; btn.disabled = true; note.textContent = "Sending…"; note.className = "sendnote";
     try {
-      const r = await fetch("/send", { method: "POST", headers: {"Content-Type": "application/json"},
+      const r = await fetch("/send", { method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({to, text: "🌾 Kisan Copilot:\n" + j.spoken_text}) });
       const res = await r.json();
       if (res.ok && !res.dry_run) { note.textContent = "✓ Sent on WhatsApp"; note.className = "sendnote ok"; }
@@ -303,23 +643,20 @@ function renderAnswer(j) {
   };
   scrollBottom();
 }
-
 function fail(thinkEl, msg) {
-  thinkEl.stop();
+  thinkEl.stop && thinkEl.stop();
   thinkEl.querySelector(".bubble").innerHTML =
-    `<span style="color:var(--danger);font-size:.88rem">⚠︎ ${esc(msg)}</span>`;
+    `<span style="color:var(--red);font-size:.88rem">⚠︎ ${esc(msg)}</span>`;
 }
-
-/* ---------- text path ---------- */
 async function sendText(text) {
   text = (text || "").trim();
   if (!text || busy) return;
-  setBusy(true); $("ti").value = "";
+  setBusy(true); $("ti").value = ""; $("sendb").classList.remove("ready");
   addUser(text);
   const th = addThinking("Snowflake reasoning — live weather, prices, agronomy…");
   try {
-    const r = await fetch("/ask_text", { method: "POST",
-      headers: {"Content-Type": "application/json"}, body: JSON.stringify({text}) });
+    const r = await fetch("/ask_text", { method:"POST",
+      headers:{"Content-Type":"application/json"}, body: JSON.stringify({text}) });
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "HTTP " + r.status);
     th.stop(); th.remove(); renderAnswer(j);
@@ -327,9 +664,9 @@ async function sendText(text) {
   setBusy(false);
 }
 
-/* ---------- voice path ---------- */
-let ctx, proc, stream, chunks = [], recording = false, busy = false;
-function setBusy(b) { busy = b; $("sendb").disabled = b; $("micb").disabled = b && !recording; }
+/* ---------- recorder (shared by Ask + Field) ---------- */
+let ctx, proc, stream, chunks = [], recording = false, recTarget = "ask";
+function setBusy(b) { busy = b; $("sendb").disabled = b; $("micb").disabled = b && !recording; $("fmic").disabled = b && !recording; }
 function wavBlob(f32, rate) {
   const pcm = new Int16Array(f32.length);
   for (let i = 0; i < f32.length; i++) pcm[i] = Math.max(-1, Math.min(1, f32[i])) * 0x7fff;
@@ -342,8 +679,9 @@ function wavBlob(f32, rate) {
   new Int16Array(buf,44).set(pcm);
   return new Blob([buf], {type:"audio/wav"});
 }
-async function recStart() {
-  stream = await navigator.mediaDevices.getUserMedia({audio: true});
+async function recStart(target) {
+  recTarget = target;
+  stream = await navigator.mediaDevices.getUserMedia({audio:true});
   ctx = new AudioContext();
   const src = ctx.createMediaStreamSource(stream);
   proc = ctx.createScriptProcessor(4096, 1, 1);
@@ -351,38 +689,45 @@ async function recStart() {
   proc.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
   src.connect(proc); proc.connect(ctx.destination);
   recording = true;
-  $("micb").classList.add("rec"); $("micb").textContent = "⏹";
-  $("bar").classList.add("rec");
-  $("ti").placeholder = "Listening… tap ⏹ when done"; $("ti").disabled = true;
+  if (target === "ask") { $("micb").classList.add("rec"); $("micb").textContent = "⏹";
+    $("bar").classList.add("rec"); $("ti").placeholder = "Listening… tap ⏹ when done"; $("ti").disabled = true; }
+  else { $("fmic").classList.add("rec"); $("fmic").textContent = "⏹"; $("fstatus").textContent = "Listening… tap again when done"; }
 }
 async function recStop() {
   recording = false;
   $("micb").classList.remove("rec"); $("micb").textContent = "🎤";
-  $("bar").classList.remove("rec");
-  $("ti").placeholder = "Type in any language… or tap the mic"; $("ti").disabled = false;
+  $("bar").classList.remove("rec"); $("ti").placeholder = "Type in any language… or tap the mic"; $("ti").disabled = false;
+  $("fmic").classList.remove("rec"); $("fmic").textContent = "🎤";
   proc.disconnect(); stream.getTracks().forEach(t => t.stop());
   const flat = new Float32Array(chunks.reduce((n,c) => n+c.length, 0));
   let o = 0; chunks.forEach(c => { flat.set(c, o); o += c.length; });
   const blob = wavBlob(flat, ctx.sampleRate); ctx.close();
   setBusy(true);
-  const ub = addUser("🎤 voice question…");
-  const th = addThinking("Transcribing your voice…");
+  const isField = recTarget === "field";
+  let ub, th;
+  if (isField) { $("fstatus").textContent = "Thinking — Snowflake reasoning…"; $("fanswer").textContent = ""; }
+  else { ub = addUser("🎤 voice question…"); th = addThinking("Transcribing your voice…"); }
   const fd = new FormData(); fd.append("audio", blob, "question.wav");
   try {
-    const r = await fetch("/ask", {method: "POST", body: fd});
+    const r = await fetch("/ask", {method:"POST", body: fd});
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "HTTP " + r.status);
-    ub.querySelector(".bubble").textContent = "🎤 “" + j.transcript + "”";
-    th.stop(); th.remove(); renderAnswer(j);
-  } catch (e) { fail(th, e.message); }
+    if (isField) renderAnswer(j, true);
+    else { ub.querySelector(".bubble").textContent = "🎤 “" + j.transcript + "”";
+           th.stop(); th.remove(); renderAnswer(j); }
+  } catch (e) {
+    if (isField) $("fstatus").textContent = "⚠︎ " + e.message;
+    else fail(th, e.message);
+  }
   setBusy(false);
 }
 $("micb").onclick = () => recording ? recStop() :
-  recStart().catch(e => { const th = addThinking(""); fail(th, "mic: " + e.message); });
+  recStart("ask").catch(e => { const th = addThinking(""); fail(th, "mic: " + e.message); });
+$("fmic").onclick = () => recording ? recStop() :
+  recStart("field").catch(e => $("fstatus").textContent = "mic: " + e.message);
 $("sendb").onclick = () => sendText($("ti").value);
 $("ti").addEventListener("keydown", e => { if (e.key === "Enter") sendText($("ti").value); });
-$("ti").addEventListener("input", () =>
-  $("sendb").classList.toggle("ready", !!$("ti").value.trim()));
+$("ti").addEventListener("input", () => $("sendb").classList.toggle("ready", !!$("ti").value.trim()));
 </script>
 </body>
 </html>

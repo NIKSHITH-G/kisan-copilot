@@ -60,6 +60,26 @@ def answer_farmer(district: str, crop: str, question: str, language: str) -> dic
                 raise
 
 
+def query(sql: str, params=None) -> list[dict]:
+    """Read-only helper for the browse endpoints (/prices, /guide, /snapshot)."""
+    global _conn
+    for attempt in (1, 2):
+        try:
+            cur = _get_conn().cursor()
+            cur.execute(sql, params or ())
+            cols = [d[0].lower() for d in cur.description]
+            return [dict(zip(cols, r)) for r in cur.fetchall()]
+        except snowflake.connector.errors.Error:
+            with _lock:
+                try:
+                    _conn.close()
+                except Exception:
+                    pass
+                _conn = None
+            if attempt == 2:
+                raise
+
+
 def ping() -> bool:
     cur = _get_conn().cursor()
     cur.execute("SELECT 1")
