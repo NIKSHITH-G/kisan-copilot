@@ -3,371 +3,511 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0a0d0b">
+<meta name="theme-color" content="#08090a">
 <title>Kisan Copilot</title>
 <style>
   :root {
-    --bg:#0a0d0b; --bg2:#101512; --card:#151b17; --card2:#1b221d;
-    --border:#242c26; --ink:#eef4ef; --ink2:#9aa79d; --ink3:#66736a;
-    --green:#22c55e; --green-dk:#15803d; --green-soft:rgba(34,197,94,.12);
-    --data:#2fae60; --red:#ef5350; --amber:#f0b429; --blue:#60a5fa;
-    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --bg:#08090a; --surface:#131417; --surface-2:#1a1c1f;
+    --border:#232629; --border-soft:#1a1c1f;
+    --ink:#f4f6f4; --ink-2:#98a09a; --ink-3:#5e6663;
+    --accent:#2fae60; --accent-ink:#052712; --accent-wash:#16241b;
+    --danger:#e5645c; --warn:#d9a441; --data:#2fae60;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --r-sm:10px; --r-md:14px; --r-pill:999px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg:#f4f6f4; --surface:#ffffff; --surface-2:#eef1ee;
+      --border:#dde3de; --border-soft:#e6eae6;
+      --ink:#151a16; --ink-2:#535e56; --ink-3:#8b968e;
+      --accent:#178a49; --accent-ink:#ffffff; --accent-wash:#e6f3ea;
+      --danger:#c0392f; --warn:#966a17; --data:#178a49;
+    }
   }
   * { box-sizing:border-box; margin:0; -webkit-tap-highlight-color:transparent; }
   html,body { height:100%; }
-  body { font-family: system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg);
-         color:var(--ink); line-height:1.5; }
+  body {
+    font-family:var(--sans); background:var(--bg); color:var(--ink);
+    line-height:1.5; font-size:15px; -webkit-font-smoothing:antialiased;
+  }
+  .ic { width:18px; height:18px; stroke:currentColor; stroke-width:1.8;
+        fill:none; stroke-linecap:round; stroke-linejoin:round; flex:none; display:block; }
+  .num { font-variant-numeric:tabular-nums; }
+  button, input, select { font-family:inherit; }
+  button { -webkit-appearance:none; appearance:none; }
 
   /* ---------- ticker ---------- */
-  .ticker { background:var(--bg2); border-bottom:1px solid var(--border);
-            font-family:var(--mono); font-size:.68rem; color:var(--green);
-            white-space:nowrap; overflow:hidden; padding:.35rem 0; }
-  .ticker span { display:inline-block; padding-left:100%;
-                 animation: tick 30s linear infinite; }
-  @keyframes tick { to { transform: translateX(-100%); } }
+  .ticker-wrap { background:var(--surface); border-bottom:1px solid var(--border-soft);
+                 overflow:hidden; position:relative; }
+  .ticker-wrap::before, .ticker-wrap::after {
+    content:""; position:absolute; top:0; bottom:0; width:28px; z-index:2; pointer-events:none;
+  }
+  .ticker-wrap::before { left:0; background:linear-gradient(90deg, var(--surface), transparent); }
+  .ticker-wrap::after { right:0; background:linear-gradient(270deg, var(--surface), transparent); }
+  .ticker { display:flex; align-items:center; gap:.5rem; white-space:nowrap;
+            font-family:var(--mono); font-size:.7rem; color:var(--ink-2); padding:.4rem 0;
+            animation: tick 55s linear infinite; width:max-content; }
+  .ticker-wrap:hover .ticker { animation-play-state:paused; }
+  @keyframes tick { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+  .tk-live { display:inline-flex; align-items:center; gap:.35rem; color:var(--accent);
+             font-weight:600; letter-spacing:.06em; padding-left:1rem; }
+  .tk-dot { width:6px; height:6px; border-radius:50%; background:var(--accent);
+            animation:blink 1.6s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity:.25; } }
+  .tk-item b { color:var(--ink); font-weight:600; } .tk-item i { font-style:normal; color:var(--ink-3); }
+  .tk-sep { color:var(--border); padding:0 .15rem; }
 
   /* ---------- header ---------- */
-  header { position:sticky; top:0; z-index:30; background:rgba(10,13,11,.85);
-           backdrop-filter:blur(14px); border-bottom:1px solid var(--border); }
-  .hin { max-width:760px; margin:0 auto; padding:.55rem 1rem;
-         display:flex; align-items:center; gap:.6rem; }
-  .logo { width:34px; height:34px; border-radius:9px; display:grid; place-items:center;
-          font-size:1.05rem; background:var(--green); color:#052e12; }
-  .wordmark { font-weight:800; letter-spacing:.02em; font-size:1.02rem; }
-  .wordmark em { color:var(--green); font-style:normal; }
-  .distchip { margin-left:auto; display:flex; align-items:center; gap:.35rem;
-              font-family:var(--mono); font-size:.68rem; letter-spacing:.05em;
-              text-transform:uppercase; color:var(--ink2); background:var(--card);
-              border:1px solid var(--border); border-radius:99px; padding:.3rem .7rem;
-              cursor:pointer; }
-  .hdot { width:7px; height:7px; border-radius:50%; background:var(--ink3); flex:none; }
-  .hdot.ok { background:var(--green); box-shadow:0 0 7px var(--green); }
-  .hdot.bad { background:var(--red); }
+  header { position:sticky; top:0; z-index:30; background:color-mix(in srgb, var(--bg) 88%, transparent);
+           backdrop-filter:blur(10px); border-bottom:1px solid var(--border-soft); }
+  .hin { max-width:720px; margin:0 auto; padding:.65rem 1rem; display:flex; align-items:center; gap:.6rem; }
+  .logo { width:32px; height:32px; border-radius:9px; background:var(--accent);
+          display:grid; place-items:center; flex:none; }
+  .logo .ic { stroke:var(--accent-ink); width:19px; height:19px; }
+  .brandtxt { line-height:1.15; }
+  .brandtxt b { font-size:.98rem; font-weight:750; letter-spacing:-.01em; }
+  .brandtxt small { display:block; font-family:var(--mono); font-size:.6rem; letter-spacing:.06em;
+                     color:var(--ink-3); text-transform:uppercase; margin-top:1px; }
+  .distchip { margin-left:auto; display:flex; align-items:center; gap:.3rem; font-size:.74rem;
+              color:var(--ink-2); background:var(--surface); border:1px solid var(--border);
+              border-radius:var(--r-pill); padding:.35rem .7rem .35rem .55rem; cursor:pointer; }
+  .distchip .ic { width:14px; height:14px; color:var(--ink-3); }
+  .distchip b { color:var(--ink); font-weight:600; }
+  .hbtn { width:32px; height:32px; border-radius:50%; border:1px solid var(--border);
+          background:var(--surface); color:var(--ink-2); display:grid; place-items:center; cursor:pointer; }
+  .hdot { width:7px; height:7px; border-radius:50%; background:var(--ink-3); position:relative; left:-13px; top:-11px; }
+  .hdot.ok { background:var(--accent); box-shadow:0 0 0 2px var(--surface); }
+  .hdot.bad { background:var(--danger); box-shadow:0 0 0 2px var(--surface); }
 
-  main { max-width:760px; margin:0 auto; padding:1rem 1rem 6.4rem; }
-  .screen { display:none; } .screen.on { display:block; }
-  h1 { font-size:1.55rem; letter-spacing:-.02em; line-height:1.25; margin:.6rem 0 1rem; }
-  .sub { color:var(--ink2); font-size:.85rem; }
+  main { max-width:720px; margin:0 auto; padding:1.1rem 1rem 6.2rem; }
+  .screen { display:none; } .screen.on { display:block; animation:fadein .18s ease; }
+  @keyframes fadein { from { opacity:0; transform:translateY(4px); } }
+  h1 { font-size:1.32rem; font-weight:750; letter-spacing:-.015em; line-height:1.28; }
+  .eyebrow { font-family:var(--mono); font-size:.66rem; letter-spacing:.08em; text-transform:uppercase;
+             color:var(--ink-3); margin-bottom:.3rem; display:block; }
+  .sub { color:var(--ink-2); font-size:.85rem; margin-top:.3rem; }
 
-  /* ---------- home ---------- */
-  .askcard { margin-top:1rem; background:linear-gradient(160deg, var(--green), #15964a);
-             border-radius:20px; padding:1.6rem 1rem 1.4rem; text-align:center;
-             color:#04250f; cursor:pointer; box-shadow:0 10px 34px rgba(34,197,94,.25); }
-  .askcard .micbox { width:74px; height:74px; margin:0 auto .7rem; border-radius:18px;
-                     background:rgba(0,0,0,.16); display:grid; place-items:center; font-size:2rem; }
-  .askcard b { font-size:1.25rem; }
-  .askcard div.s { font-size:.85rem; opacity:.85; margin-top:.15rem; }
-  .strip { margin-top:.8rem; display:grid; gap:.45rem; }
-  .srow { display:flex; align-items:center; gap:.6rem; background:var(--card);
-          border:1px solid var(--border); border-left:3px solid var(--green);
-          border-radius:12px; padding:.55rem .8rem; font-family:var(--mono); font-size:.78rem; }
-  .srow .c { font-weight:700; }
-  .srow .d { margin-left:auto; color:var(--ink3); font-size:.68rem; }
-  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; margin-top:1rem; }
-  .tilebtn { background:var(--card); border:1px solid var(--border); border-radius:16px;
-             padding:1rem .9rem; text-align:left; cursor:pointer; color:var(--ink);
-             font-family:inherit; font-size:1rem; font-weight:650; }
-  .tilebtn .ic { width:42px; height:42px; border-radius:11px; display:grid; place-items:center;
-                 font-size:1.25rem; margin-bottom:.6rem; background:var(--green-soft); }
-  .tilebtn:hover { border-color:var(--green); }
-  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:.6rem; margin-top:1rem; }
-  .stat { border:1px solid var(--border); border-left:3px solid var(--green);
-          border-radius:12px; padding:.6rem .7rem; background:var(--card); }
-  .stat b { font-family:var(--mono); font-size:1.1rem; color:var(--green); display:block; }
-  .stat span { font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink3); }
-  .stat.live { border-left-color:var(--amber); }
-  .stat.live b { color:var(--amber); }
+  /* ---------- generic components ---------- */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); }
+  .actioncard { display:flex; align-items:center; gap:.85rem; padding:.95rem 1rem; margin-top:1rem;
+                cursor:pointer; transition:border-color .15s, transform .1s; }
+  .actioncard:active { transform:scale(.99); }
+  .actioncard:hover { border-color:color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  .actioncard .badge { width:44px; height:44px; border-radius:12px; background:var(--accent);
+                        display:grid; place-items:center; flex:none; }
+  .actioncard .badge .ic { color:var(--accent-ink); width:22px; height:22px; }
+  .actioncard .tx b { font-size:1rem; font-weight:700; display:block; }
+  .actioncard .tx span { font-size:.8rem; color:var(--ink-2); }
+  .actioncard .chev { margin-left:auto; color:var(--ink-3); }
 
-  /* ---------- chat (ask) ---------- */
-  .examples { display:grid; gap:.5rem; margin-top:.8rem; }
-  .ex { text-align:left; font-size:.88rem; padding:.65rem .9rem; cursor:pointer;
-        border:1px solid var(--border); border-radius:14px; background:var(--card);
+  .strip { margin-top:.7rem; display:grid; gap:.5rem; }
+  .srow { display:flex; align-items:center; gap:.6rem; border-radius:var(--r-sm);
+          border:1px solid var(--border); border-left:3px solid var(--ink-3);
+          padding:.55rem .75rem; background:var(--surface); }
+  .srow.up { border-left-color:var(--accent); } .srow.dn { border-left-color:var(--danger); }
+  .srow .ic { width:15px; height:15px; color:var(--ink-2); }
+  .srow .c { font-weight:650; font-size:.85rem; }
+  .srow .p { font-family:var(--mono); font-size:.82rem; color:var(--ink-2); }
+  .srow .d { margin-left:auto; font-family:var(--mono); font-size:.66rem; color:var(--ink-3); }
+  .srow.empty { border-left-color:var(--border); color:var(--ink-2); font-size:.82rem; }
+
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-top:1.1rem; }
+  .tilebtn { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md);
+             padding:.9rem .85rem; text-align:left; cursor:pointer; color:var(--ink);
+             font-family:inherit; transition:border-color .15s; }
+  .tilebtn:hover { border-color:color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  .tilebtn .badge { width:36px; height:36px; border-radius:10px; border:1px solid var(--border);
+                     display:grid; place-items:center; margin-bottom:.55rem; }
+  .tilebtn .badge .ic { color:var(--ink-2); width:18px; height:18px; }
+  .tilebtn b { font-size:.88rem; font-weight:650; }
+
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:.5rem; margin-top:1.1rem; }
+  .stat { border:1px solid var(--border); border-radius:var(--r-sm); padding:.6rem .65rem;
+          background:var(--surface); }
+  .stat b { font-family:var(--mono); font-size:1.05rem; font-weight:650; display:block; }
+  .stat span { font-size:.6rem; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); }
+  .stat.live b { color:var(--accent); }
+  .stat.live .lv { display:inline-flex; align-items:center; gap:.3rem; }
+  .footnote { color:var(--ink-3); font-size:.72rem; margin-top:1rem; line-height:1.6; }
+
+  /* ---------- pills / chips ---------- */
+  .chips { display:flex; gap:.4rem; overflow-x:auto; padding:.15rem 0; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip { flex:none; font-size:.76rem; padding:.36rem .8rem; border-radius:var(--r-pill); cursor:pointer;
+          border:1px solid var(--border); background:var(--surface); color:var(--ink-2); }
+  .chip.on { background:var(--accent-wash); border-color:var(--accent); color:var(--accent); font-weight:650; }
+
+  .tag { display:inline-flex; align-items:center; gap:.3rem; font-size:.66rem; font-weight:600;
+         font-family:var(--mono); padding:.2rem .5rem; border-radius:var(--r-pill);
+         background:var(--surface-2); border:1px solid var(--border); color:var(--ink-2); }
+  .tag .ic { width:11px; height:11px; }
+  .tag.warn { color:var(--warn); border-color:color-mix(in srgb, var(--warn) 50%, var(--border)); }
+  .tag.ok { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 50%, var(--border)); }
+
+  /* ---------- buttons / inputs ---------- */
+  .btn { display:inline-flex; align-items:center; gap:.4rem; border:1px solid var(--border);
+         background:transparent; color:var(--ink); padding:.45rem .85rem; border-radius:var(--r-sm);
+         font-size:.82rem; font-weight:600; cursor:pointer; }
+  .btn:hover { border-color:color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  .btn .ic { width:15px; height:15px; }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .btn:disabled { opacity:.5; cursor:wait; }
+  input[type=text], input[type=tel], input[type=search], select {
+    padding:.55rem .75rem; font-size:.9rem; border-radius:var(--r-sm);
+    border:1px solid var(--border); background:var(--surface); color:var(--ink); outline:none;
+  }
+  input:focus, select:focus { border-color:var(--accent); }
+
+  /* ---------- ask / chat ---------- */
+  .examples { display:grid; gap:.5rem; margin-top:.9rem; }
+  .ex { display:flex; align-items:center; gap:.7rem; text-align:left; padding:.7rem .85rem; cursor:pointer;
+        border:1px solid var(--border); border-radius:var(--r-md); background:var(--surface);
         color:var(--ink); font-family:inherit; }
-  .ex:hover { border-color:var(--green); }
-  .ex small { display:block; color:var(--ink3); font-size:.68rem; margin-top:.1rem; }
-  .msg { margin-top:1rem; display:flex; }
+  .ex:hover { border-color:color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  .ex .ic { color:var(--ink-3); width:16px; height:16px; }
+  .ex b { font-size:.86rem; font-weight:500; display:block; }
+  .ex small { display:block; color:var(--ink-3); font-family:var(--mono); font-size:.65rem; margin-top:.25rem; letter-spacing:.02em; }
+
+  .msg { margin-top:.9rem; display:flex; }
   .msg.user { justify-content:flex-end; }
-  .bubble { max-width:88%; padding:.65rem .9rem; border-radius:16px; font-size:.95rem; }
-  .user .bubble { background:#14202c; border:1px solid var(--border); border-bottom-right-radius:5px; }
-  .bot .bubble { background:var(--card); border:1px solid var(--border);
-                 border-bottom-left-radius:5px; width:100%; max-width:100%; padding:1rem 1.05rem; }
-  .meta { display:flex; gap:.35rem; margin-top:.45rem; flex-wrap:wrap; }
-  .tag { font-size:.62rem; font-weight:700; font-family:var(--mono); padding:.14rem .5rem;
-         border-radius:99px; background:var(--card2); border:1px solid var(--border);
-         color:var(--ink2); letter-spacing:.03em; }
-  .tag.warn { color:var(--amber); border-color:var(--amber); }
-  .native { font-size:1.06rem; white-space:pre-wrap; }
-  .english { font-size:.83rem; color:var(--ink2); margin-top:.55rem; white-space:pre-wrap; }
-  .arow { display:flex; align-items:center; gap:.45rem; margin-top:.8rem; flex-wrap:wrap; }
-  .btn { border:1px solid var(--border); background:transparent; color:var(--ink);
-         padding:.4rem .8rem; border-radius:10px; font-size:.8rem; cursor:pointer; font-family:inherit; }
-  .btn:hover { border-color:var(--green); }
-  .btn.primary { background:var(--green); border-color:var(--green); color:#04250f; font-weight:700; }
-  .btn:disabled { opacity:.55; cursor:wait; }
-  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr));
-           gap:.55rem; margin-top:.85rem; }
-  .tile { border:1px solid var(--border); border-radius:12px; padding:.55rem .65rem; background:var(--card2); }
-  .tile .k { font-size:.6rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink3); }
-  .tile .v { font-size:1.02rem; font-weight:650; margin-top:.12rem; font-family:var(--mono); }
-  .tile .s { font-size:.68rem; color:var(--ink2); }
-  .up { color:var(--green); } .down { color:var(--red); }
-  .spark svg { display:block; width:100%; height:38px; overflow:visible; margin-top:.3rem; }
-  .send { margin-top:.9rem; padding-top:.8rem; border-top:1px dashed var(--border); }
-  .send label { font-size:.64rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink3); }
-  .send .row { display:flex; gap:.5rem; margin-top:.35rem; }
-  .send input { flex:1; padding:.5rem .7rem; font-size:.88rem; border-radius:10px;
-                border:1px solid var(--border); background:transparent; color:var(--ink); }
-  .sendnote { font-size:.7rem; margin-top:.35rem; color:var(--ink3); }
-  .sendnote.ok { color:var(--green); } .sendnote.err { color:var(--red); }
-  details.ev { margin-top:.85rem; font-size:.78rem; }
-  details.ev summary { cursor:pointer; color:var(--ink2); }
-  details.ev pre { overflow-x:auto; background:var(--bg2); padding:.6rem;
-                   border-radius:10px; font-size:.66rem; margin-top:.45rem; }
-  .think { display:flex; align-items:center; gap:.6rem; color:var(--ink2); font-size:.85rem; }
-  .dots { display:inline-flex; gap:4px; }
-  .dots i { width:6px; height:6px; border-radius:50%; background:var(--green); animation:bnc 1.2s infinite; }
-  .dots i:nth-child(2){animation-delay:.15s} .dots i:nth-child(3){animation-delay:.3s}
-  @keyframes bnc { 30% { transform:translateY(-4px); opacity:.5; } }
-  .composer { position:fixed; left:0; right:0; bottom:3.6rem; z-index:25;
-              padding:.8rem 0 .5rem; background:linear-gradient(transparent, var(--bg) 45%); display:none; }
+  .bubble { max-width:88%; padding:.6rem .85rem; border-radius:var(--r-md); font-size:.94rem; }
+  .user .bubble { background:var(--surface-2); border:1px solid var(--border); border-bottom-right-radius:4px;
+                  display:flex; align-items:center; gap:.4rem; }
+  .user .bubble .ic { width:14px; height:14px; color:var(--ink-3); }
+  .bot .bubble { background:var(--surface); border:1px solid var(--border); border-bottom-left-radius:4px;
+                 width:100%; max-width:100%; padding:1rem; }
+  .meta { display:flex; gap:.35rem; margin:0 0 .65rem; flex-wrap:wrap; }
+  .native { font-size:1.02rem; white-space:pre-wrap; }
+  .english { font-size:.82rem; color:var(--ink-2); margin-top:.55rem; white-space:pre-wrap;
+             padding-top:.55rem; border-top:1px solid var(--border-soft); }
+  .arow { margin-top:.8rem; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(126px,1fr)); gap:.5rem; margin-top:.85rem; }
+  .tile { border:1px solid var(--border); border-radius:var(--r-sm); padding:.55rem .65rem; background:var(--surface-2); }
+  .tile .k { display:flex; align-items:center; gap:.3rem; font-size:.6rem; font-weight:650; letter-spacing:.05em;
+             text-transform:uppercase; color:var(--ink-3); }
+  .tile .k .ic { width:12px; height:12px; }
+  .tile .v { font-size:1rem; font-weight:650; margin-top:.25rem; font-family:var(--mono); display:flex; align-items:center; gap:.3rem; }
+  .tile .s { font-size:.68rem; color:var(--ink-2); margin-top:.1rem; }
+  .updir { color:var(--accent); display:inline-flex; align-items:center; gap:.1rem; font-size:.72rem; }
+  .dndir { color:var(--danger); display:inline-flex; align-items:center; gap:.1rem; font-size:.72rem; }
+  .updir .ic, .dndir .ic { width:12px; height:12px; }
+  .spark svg { display:block; width:100%; height:32px; overflow:visible; margin-top:.35rem; }
+
+  .send { margin-top:.9rem; padding-top:.85rem; border-top:1px solid var(--border-soft); }
+  .send label { font-size:.63rem; font-weight:650; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); }
+  .send .row { display:flex; gap:.5rem; margin-top:.4rem; }
+  .send input { flex:1; }
+  .sendnote { font-size:.72rem; margin-top:.4rem; color:var(--ink-3); display:flex; align-items:center; gap:.3rem; }
+  .sendnote .ic { width:13px; height:13px; }
+  .sendnote.ok { color:var(--accent); } .sendnote.err { color:var(--danger); }
+
+  details.ev { margin-top:.9rem; }
+  details.ev summary { cursor:pointer; color:var(--ink-2); font-size:.78rem; display:flex; align-items:center; gap:.35rem;
+                       list-style:none; }
+  details.ev summary::-webkit-details-marker { display:none; }
+  details.ev summary .ic { width:13px; height:13px; }
+  details.ev pre { overflow-x:auto; background:var(--bg); border:1px solid var(--border-soft); padding:.65rem;
+                   border-radius:var(--r-sm); font-size:.66rem; margin-top:.5rem; color:var(--ink-2); }
+
+  .think { display:flex; align-items:center; gap:.6rem; color:var(--ink-2); font-size:.85rem; }
+  .think .ic { color:var(--accent); animation:spin 1.4s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .composer { position:fixed; left:0; right:0; bottom:3.75rem; z-index:25; padding:.7rem 0 .4rem;
+              background:linear-gradient(transparent, var(--bg) 55%); display:none; }
   .composer.on { display:block; }
-  .cin { max-width:760px; margin:0 auto; padding:0 1rem; }
-  .bar { display:flex; align-items:center; gap:.45rem; background:var(--card);
-         border:1px solid var(--border); border-radius:999px; padding:.35rem .4rem .35rem 1rem; }
-  .bar.rec { border-color:var(--red); }
-  #ti { flex:1; border:none; background:transparent; color:var(--ink); font-size:.98rem;
-        outline:none; font-family:inherit; min-width:0; }
-  .cbtn { width:42px; height:42px; border-radius:50%; border:none; cursor:pointer;
-          font-size:1.1rem; display:grid; place-items:center; flex:none; color:#04250f; }
-  #micb { background:var(--green); }
-  #micb.rec { background:var(--red); color:#fff; animation:pulse 1.2s infinite; }
-  @keyframes pulse { 50% { box-shadow:0 0 0 9px rgba(239,83,80,.16); } }
-  #sendb { background:var(--card2); color:var(--ink2); border:1px solid var(--border); }
-  #sendb.ready { background:var(--green); color:#04250f; border-color:var(--green); }
+  .cin { max-width:720px; margin:0 auto; padding:0 1rem; }
+  .bar { display:flex; align-items:center; gap:.4rem; background:var(--surface);
+         border:1px solid var(--border); border-radius:var(--r-pill); padding:.3rem .35rem .3rem .95rem; }
+  .bar:focus-within { border-color:var(--accent); }
+  .bar.rec { border-color:var(--danger); }
+  #ti { flex:1; border:none; background:transparent; color:var(--ink); font-size:.94rem; outline:none; min-width:0; }
+  .cbtn { width:38px; height:38px; border-radius:50%; border:1px solid var(--border); cursor:pointer;
+          display:grid; place-items:center; flex:none; background:var(--surface-2); color:var(--ink-3); }
+  .cbtn .ic { width:17px; height:17px; }
+  #micb.rec { background:var(--danger); border-color:var(--danger); color:#fff; position:relative; }
+  #micb.rec::before { content:""; position:absolute; inset:-6px; border-radius:50%;
+                       border:1.5px solid var(--danger); animation:ring 1.3s ease-out infinite; }
+  @keyframes ring { from { transform:scale(.8); opacity:.9; } to { transform:scale(1.35); opacity:0; } }
+  #sendb.ready { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
 
   /* ---------- prices ---------- */
-  .search { display:flex; align-items:center; gap:.5rem; background:var(--card);
-            border:1px solid var(--border); border-radius:14px; padding:.55rem .8rem; margin-top:.6rem; }
-  .search input { flex:1; border:none; background:transparent; color:var(--ink);
-                  font-size:.95rem; outline:none; font-family:inherit; }
-  .chips { display:flex; gap:.4rem; overflow-x:auto; padding:.6rem 0 .2rem; scrollbar-width:none; }
-  .chips::-webkit-scrollbar { display:none; }
-  .chip { flex:none; font-family:var(--mono); font-size:.74rem; padding:.35rem .8rem;
-          border-radius:99px; cursor:pointer; border:1px solid var(--border);
-          background:var(--card); color:var(--ink2); }
-  .chip.on { background:var(--green); border-color:var(--green); color:#04250f; font-weight:700; }
-  .plist { display:grid; gap:.6rem; margin-top:.6rem; }
-  .pcard { display:grid; grid-template-columns:1fr auto; gap:.2rem .8rem;
-           background:var(--card); border:1px solid var(--border); border-left:3px solid var(--ink3);
-           border-radius:14px; padding:.75rem .9rem; }
-  .pcard.up { border-left-color:var(--green); } .pcard.dn { border-left-color:var(--red); }
-  .pcard.fl { border-left-color:var(--amber); }
-  .pc-name { font-weight:750; font-size:1.05rem; }
-  .pc-mkt { color:var(--ink2); font-size:.76rem; }
-  .pc-price { font-family:var(--mono); font-size:1.15rem; font-weight:700; color:var(--green); margin-top:.2rem; }
-  .pc-price small { color:var(--ink3); font-weight:400; font-size:.68rem; }
+  .search { display:flex; align-items:center; gap:.55rem; background:var(--surface);
+            border:1px solid var(--border); border-radius:var(--r-md); padding:.6rem .8rem; margin-top:.8rem; }
+  .search .ic { color:var(--ink-3); }
+  .search input { flex:1; border:none; background:transparent; color:var(--ink); font-size:.92rem; outline:none; }
+  .filters { margin-top:.7rem; display:grid; gap:.4rem; }
+  .plist { display:grid; gap:.55rem; margin-top:.75rem; }
+  .pcard { display:grid; grid-template-columns:1fr auto; gap:.15rem .8rem; background:var(--surface);
+           border:1px solid var(--border); border-left:3px solid var(--ink-3); border-radius:var(--r-md);
+           padding:.75rem .9rem; }
+  .pcard.up { border-left-color:var(--accent); } .pcard.dn { border-left-color:var(--danger); }
+  .pc-name { font-weight:700; font-size:1rem; }
+  .pc-mkt { color:var(--ink-2); font-size:.75rem; margin-top:.1rem; }
+  .pc-price { font-family:var(--mono); font-size:1.1rem; font-weight:700; margin-top:.35rem; }
+  .pc-price small { color:var(--ink-3); font-weight:400; font-size:.66rem; }
   .pc-right { text-align:right; }
-  .pc-trend { font-family:var(--mono); font-size:.78rem; }
-  .pc-date { color:var(--ink3); font-family:var(--mono); font-size:.64rem; margin-top:.3rem; }
-  .pc-spark svg { width:96px; height:26px; overflow:visible; }
-  .empty { text-align:center; color:var(--ink3); font-size:.85rem; padding:2rem 0; }
-  .foot { color:var(--ink3); font-size:.68rem; text-align:center; margin-top:1rem; }
+  .pc-trend { font-family:var(--mono); font-size:.76rem; display:flex; align-items:center; gap:.2rem; justify-content:flex-end; }
+  .pc-date { color:var(--ink-3); font-family:var(--mono); font-size:.63rem; margin-top:.4rem; }
+  .pc-spark svg { width:88px; height:24px; overflow:visible; }
+  .empty { text-align:center; color:var(--ink-3); font-size:.85rem; padding:2.4rem 1rem; line-height:1.6; }
+  .empty .ic { width:26px; height:26px; margin:0 auto .6rem; color:var(--ink-3); }
 
   /* ---------- guide ---------- */
-  .ghero { margin-top:.7rem; background:linear-gradient(160deg,#123a22,#0e2417);
-           border:1px solid var(--border); border-radius:16px; padding:1rem; }
-  .ghero .k { font-family:var(--mono); font-size:.64rem; color:var(--green);
-              letter-spacing:.1em; text-transform:uppercase; }
-  .ghero b { font-size:1.3rem; display:block; margin:.1rem 0; }
-  .ghero .s { font-size:.8rem; color:var(--ink2); }
-  .acc { margin-top:.6rem; border:1px solid var(--border); border-left:3px solid var(--green);
-         border-radius:14px; background:var(--card); overflow:hidden; }
-  .acc[data-t="fertilizer"] { border-left-color:var(--amber); }
-  .acc[data-t="irrigation"] { border-left-color:var(--blue); }
-  .acc[data-t="pests_diseases"] { border-left-color:var(--red); }
-  .acc summary { display:flex; align-items:center; gap:.7rem; padding:.8rem .9rem;
-                 cursor:pointer; list-style:none; font-weight:700; }
-  .acc summary::-webkit-details-marker { display:none; }
-  .acc .ic { width:36px; height:36px; border-radius:9px; display:grid; place-items:center;
-             background:var(--card2); font-size:1.05rem; flex:none; }
-  .acc small { display:block; font-weight:400; color:var(--ink3); font-size:.7rem; }
-  .acc .body { padding:0 .95rem .9rem; font-size:.88rem; color:var(--ink); }
-  .acc .src { margin-top:.5rem; font-size:.66rem; color:var(--ink3); font-family:var(--mono); }
-  .stages { display:flex; gap:.45rem; overflow-x:auto; margin-top:.8rem; padding-bottom:.3rem; scrollbar-width:none; }
-  .stg { flex:none; border:1px solid var(--border); border-radius:12px; padding:.5rem .7rem;
-         background:var(--card); min-width:120px; }
-  .stg.cur { border-color:var(--green); background:var(--green-soft); }
+  .ghero { margin-top:.8rem; border:1px solid var(--border); border-radius:var(--r-md); padding:1rem; background:var(--surface); }
+  .ghero .eyebrow { color:var(--accent); }
+  .ghero b { font-size:1.15rem; display:block; margin:.15rem 0 .2rem; }
+  .msp-line { margin-top:.55rem; font-size:.76rem; color:var(--ink-2); font-family:var(--mono); }
+  .stages { display:flex; gap:.5rem; overflow-x:auto; margin-top:.9rem; padding-bottom:.3rem; scrollbar-width:none; }
+  .stages::-webkit-scrollbar { display:none; }
+  .stg { flex:none; border:1px solid var(--border); border-radius:var(--r-sm); padding:.55rem .7rem;
+         background:var(--surface); min-width:118px; }
+  .stg.cur { border-color:var(--accent); background:var(--accent-wash); }
   .stg b { font-size:.78rem; display:block; }
-  .stg span { font-family:var(--mono); font-size:.62rem; color:var(--ink3); }
-  .stg .cur-tag { color:var(--green); font-size:.6rem; font-weight:700; }
+  .stg span { font-family:var(--mono); font-size:.6rem; color:var(--ink-3); display:block; margin-top:.15rem; }
+  .stg .cur-tag { color:var(--accent); font-size:.6rem; font-weight:700; margin-top:.25rem; display:flex; align-items:center; gap:.25rem; }
+  .stg .cur-tag .dot { width:5px; height:5px; border-radius:50%; background:var(--accent); animation:blink 1.6s infinite; }
+  .acc { margin-top:.55rem; border:1px solid var(--border); border-left:3px solid var(--ink-3);
+         border-radius:var(--r-md); background:var(--surface); overflow:hidden; }
+  .acc[data-t="sowing_seeds"] { border-left-color:var(--accent); }
+  .acc[data-t="fertilizer"] { border-left-color:var(--warn); }
+  .acc[data-t="irrigation"] { border-left-color:#5aa2e0; }
+  .acc[data-t="pests_diseases"] { border-left-color:var(--danger); }
+  .acc summary { display:flex; align-items:center; gap:.7rem; padding:.8rem .9rem; cursor:pointer; list-style:none; }
+  .acc summary::-webkit-details-marker { display:none; }
+  .acc .badge { width:34px; height:34px; border-radius:9px; border:1px solid var(--border);
+                display:grid; place-items:center; flex:none; }
+  .acc .badge .ic { width:16px; height:16px; color:var(--ink-2); }
+  .acc summary b { font-size:.88rem; font-weight:650; }
+  .acc summary small { display:block; font-weight:400; color:var(--ink-3); font-size:.68rem; margin-top:.1rem; }
+  .acc summary .chev { margin-left:auto; color:var(--ink-3); transition:transform .15s; }
+  .acc[open] summary .chev { transform:rotate(90deg); }
+  .acc .body { padding:0 .95rem .95rem; font-size:.87rem; color:var(--ink); }
+  .acc .src { margin-top:.6rem; font-size:.65rem; color:var(--ink-3); font-family:var(--mono); }
 
   /* ---------- field mode ---------- */
-  #scr-field { background:#000; margin:-1rem -1rem 0; padding:1.2rem 1.2rem 7rem; min-height:82vh; }
-  .f-dist { font-family:var(--mono); font-size:.8rem; letter-spacing:.14em;
-            text-transform:uppercase; color:var(--amber); }
-  .f-big { font-size:clamp(2.2rem,9vw,3.2rem); font-weight:800; line-height:1.12;
-           letter-spacing:-.02em; margin:.3rem 0 1rem; }
-  .f-nums { display:grid; gap:.8rem; }
-  .f-num { border:2px solid #2a2a2a; border-radius:16px; padding:.9rem 1rem; }
-  .f-num .k { font-size:.9rem; color:#bdbdbd; }
-  .f-num .v { font-size:2rem; font-weight:800; font-family:var(--mono); color:#fff; }
-  .f-num .v em { font-style:normal; color:var(--green); }
-  .f-mic { display:block; margin:1.6rem auto; width:150px; height:150px; border-radius:50%;
-           border:none; background:var(--green); color:#04250f; font-size:3.4rem; cursor:pointer;
-           box-shadow:0 0 60px rgba(34,197,94,.4); }
-  .f-mic.rec { background:var(--red); color:#fff; animation:pulse 1.2s infinite; }
-  .f-status { text-align:center; font-size:1.15rem; color:#e8e8e8; min-height:1.6em; }
-  .f-answer { font-size:1.5rem; line-height:1.5; margin-top:1.2rem; white-space:pre-wrap; }
+  #scr-field { background:#000; margin:-1.1rem -1rem 0; padding:1.3rem 1.2rem 7rem; min-height:82vh; }
+  .f-head { display:flex; align-items:center; gap:.4rem; font-family:var(--mono); font-size:.75rem;
+            letter-spacing:.12em; text-transform:uppercase; color:var(--warn); }
+  .f-head .ic { width:15px; height:15px; }
+  .f-big { font-size:clamp(2rem,8vw,2.8rem); font-weight:750; line-height:1.15; letter-spacing:-.02em; margin:.4rem 0 1.2rem; color:#fff; }
+  .f-nums { display:grid; gap:.75rem; }
+  .f-num { border:1px solid #262626; border-radius:16px; padding:.9rem 1rem; display:flex; align-items:center; gap:.8rem; }
+  .f-num .ic { width:26px; height:26px; color:#8a8f8a; flex:none; }
+  .f-num .k { font-size:.85rem; color:#a6aba6; }
+  .f-num .v { font-size:1.85rem; font-weight:750; font-family:var(--mono); color:#fff; }
+  .f-num .v em { font-style:normal; color:var(--accent); }
+  .f-mic { display:flex; align-items:center; justify-content:center; margin:1.7rem auto; width:130px; height:130px;
+           border-radius:50%; border:none; background:var(--accent); color:var(--accent-ink); cursor:pointer; position:relative; }
+  .f-mic .ic { width:52px; height:52px; stroke-width:1.5; }
+  .f-mic.rec { background:var(--danger); color:#fff; }
+  .f-mic.rec::before { content:""; position:absolute; inset:-10px; border-radius:50%; border:2px solid var(--danger);
+                        animation:ring 1.3s ease-out infinite; }
+  .f-status { text-align:center; font-size:1.05rem; color:#d7dbd7; min-height:1.6em; }
+  .f-answer { font-size:1.4rem; line-height:1.55; margin-top:1.2rem; white-space:pre-wrap; color:#fff; }
 
   /* ---------- overlays ---------- */
   .overlay { position:fixed; inset:0; z-index:40; background:var(--bg); overflow-y:auto; display:none; }
-  .overlay.on { display:block; }
-  .ovin { max-width:760px; margin:0 auto; padding:1rem 1rem 3rem; }
-  .ovhead { display:flex; align-items:center; gap:.7rem; padding:.3rem 0 1rem; }
-  .back { width:38px; height:38px; border-radius:50%; border:1px solid var(--border);
-          background:var(--card); color:var(--ink); font-size:1.1rem; cursor:pointer; }
-  .ovhead b { font-size:1.15rem; color:var(--green); }
-  .how { display:grid; gap:.9rem; margin-top:.5rem; }
-  .hstep { display:flex; gap:.85rem; }
-  .hstep .ic { width:44px; height:44px; flex:none; border-radius:12px; border:1px solid var(--green);
-               display:grid; place-items:center; font-size:1.15rem; color:var(--green); background:var(--green-soft); }
-  .hstep b { color:var(--green); font-size:.95rem; }
-  .hstep p { font-size:.82rem; color:var(--ink2); }
-  .faq details { border:1px solid var(--border); border-radius:12px; background:var(--card);
-                 padding:.65rem .85rem; margin-top:.55rem; font-size:.85rem; }
-  .faq summary { cursor:pointer; font-weight:650; }
-  .faq p { margin-top:.45rem; color:var(--ink2); font-size:.8rem; }
-  .form { display:grid; gap:.9rem; margin-top:.6rem; }
-  .form label { font-size:.66rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink3); }
-  .form input, .form select { width:100%; margin-top:.3rem; padding:.6rem .8rem; font-size:.95rem;
-    border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--ink); font-family:inherit; }
+  .overlay.on { display:block; animation:fadein .15s ease; }
+  .ovin { max-width:720px; margin:0 auto; padding:1.1rem 1rem 3rem; }
+  .ovhead { display:flex; align-items:center; gap:.75rem; padding:.2rem 0 1.1rem; }
+  .back { width:36px; height:36px; border-radius:50%; border:1px solid var(--border);
+          background:var(--surface); color:var(--ink); display:grid; place-items:center; cursor:pointer; }
+  .ovhead b { font-size:1.05rem; }
+  .how { display:grid; gap:1rem; margin-top:.6rem; }
+  .hstep { display:flex; gap:.85rem; align-items:flex-start; }
+  .hstep .num { font-family:var(--mono); font-size:.68rem; color:var(--ink-3); width:22px; padding-top:.85rem; flex:none; }
+  .hstep .badge { width:42px; height:42px; flex:none; border-radius:11px; border:1px solid var(--border);
+                  display:grid; place-items:center; background:var(--surface); }
+  .hstep .badge .ic { color:var(--accent); width:19px; height:19px; }
+  .hstep b { font-size:.94rem; font-weight:650; display:block; }
+  .hstep p { font-size:.82rem; color:var(--ink-2); margin-top:.15rem; }
+  .faq { margin-top:.6rem; }
+  .faq details { border:1px solid var(--border); border-radius:var(--r-sm); background:var(--surface);
+                 padding:.65rem .85rem; margin-top:.5rem; font-size:.85rem; }
+  .faq summary { cursor:pointer; font-weight:600; list-style:none; display:flex; align-items:center; gap:.5rem; }
+  .faq summary::-webkit-details-marker { display:none; }
+  .faq summary .ic { width:14px; height:14px; color:var(--ink-3); margin-left:auto; transition:transform .15s; }
+  .faq details[open] summary .ic { transform:rotate(180deg); }
+  .faq p { margin-top:.5rem; color:var(--ink-2); font-size:.8rem; line-height:1.6; }
+  .form { display:grid; gap:1rem; margin-top:.7rem; }
+  .form label { font-size:.65rem; font-weight:650; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); display:block; margin-bottom:.35rem; }
+  .form input, .form select { width:100%; }
 
   /* ---------- bottom nav ---------- */
-  nav { position:fixed; bottom:0; left:0; right:0; z-index:30; background:rgba(10,13,11,.92);
-        backdrop-filter:blur(14px); border-top:1px solid var(--border);
+  nav { position:fixed; bottom:0; left:0; right:0; z-index:30; background:color-mix(in srgb, var(--bg) 92%, transparent);
+        backdrop-filter:blur(10px); border-top:1px solid var(--border-soft);
         padding-bottom:env(safe-area-inset-bottom); }
-  .nin { max-width:760px; margin:0 auto; display:grid; grid-template-columns:repeat(5,1fr); }
-  .nbtn { border:none; background:transparent; color:var(--ink3); font-family:var(--mono);
-          font-size:.62rem; letter-spacing:.04em; padding:.55rem 0 .6rem; cursor:pointer; }
-  .nbtn i { display:block; font-style:normal; font-size:1.15rem; margin-bottom:.1rem; }
-  .nbtn.on { color:var(--green); }
+  .nin { max-width:720px; margin:0 auto; display:grid; grid-template-columns:repeat(5,1fr); }
+  .nbtn { border:none; background:transparent; color:var(--ink-3); font-size:.63rem; font-weight:600;
+          padding:.5rem 0 .55rem; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:.15rem; }
+  .nbtn .icwrap { width:34px; height:24px; border-radius:8px; display:grid; place-items:center; }
+  .nbtn .ic { width:19px; height:19px; }
+  .nbtn.on { color:var(--ink); }
+  .nbtn.on .icwrap { background:var(--accent-wash); }
+  .nbtn.on .ic { color:var(--accent); }
 </style>
 </head>
 <body>
 
-<div class="ticker"><span id="ticker">loading live arrivals…</span></div>
+<!-- icon sprite: single source of truth, referenced everywhere via <use> -->
+<svg style="display:none" aria-hidden="true">
+<symbol id="i-sprout" viewBox="0 0 24 24"><path d="M12 22v-9"/><path d="M12 13c0-5 4-8 8-8 0 5-3 9-8 9z"/><path d="M12 13C12 9 9 6 5 6c0 4 2.5 7 7 7z"/></symbol>
+<symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-4.7 7.6 8.5 8.5 0 0 1-8.2 0L3 21l1.9-5.1a8.38 8.38 0 0 1 0-8.2A8.5 8.5 0 0 1 12.5 3 8.5 8.5 0 0 1 21 11.5z"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M3 12l9-9 9 9"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></symbol>
+<symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.59 13.41 13 21a2 2 0 0 1-2.83 0l-8-8A2 2 0 0 1 2 11.5V4a2 2 0 0 1 2-2h7.5a2 2 0 0 1 1.41.59l8 8a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4"/></symbol>
+<symbol id="i-leaf" viewBox="0 0 24 24"><path d="M5 21c8-1 13-6 14-15C10 7 5 12 5 21z"/><path d="M5 21c2-4 5-7 9-9"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22"/><line x1="2" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="6.6" y2="6.6"/><line x1="17.4" y1="17.4" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="6.6" y2="17.4"/><line x1="17.4" y1="6.6" x2="19.1" y2="4.9"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+<symbol id="i-trend-up" viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 6"/><polyline points="15 6 21 6 21 12"/></symbol>
+<symbol id="i-trend-down" viewBox="0 0 24 24"><polyline points="3 7 9 13 13 9 21 18"/><polyline points="15 18 21 18 21 12"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+<symbol id="i-droplet" viewBox="0 0 24 24"><path d="M12 2.5s6.2 7.2 6.2 11.3A6.2 6.2 0 0 1 5.8 13.8C5.8 9.7 12 2.5 12 2.5z"/></symbol>
+<symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H6.5a4 4 0 1 1 .3-8 6 6 0 0 1 11.6 2.1A3.5 3.5 0 0 1 17.5 19z"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r=".2" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="i-check-circle" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><line x1="12" y1="16" x2="12" y2="11.5"/><circle cx="12" cy="7.8" r=".2" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+<symbol id="i-arrow-left" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+<symbol id="i-activity" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 20 9 4 6 12 2 12"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M3 4.5h6a3.5 3.5 0 0 1 3.5 3.5v13a2.5 2.5 0 0 0-2.5-2.5H3z"/><path d="M21 4.5h-6a3.5 3.5 0 0 0-3.5 3.5v13a2.5 2.5 0 0 1 2.5-2.5H21z"/></symbol>
+<symbol id="i-sliders" viewBox="0 0 24 24"><line x1="5" y1="21" x2="5" y2="13.5"/><line x1="5" y1="9.5" x2="5" y2="3"/><line x1="12" y1="21" x2="12" y2="11.5"/><line x1="12" y1="7.5" x2="12" y2="3"/><line x1="19" y1="21" x2="19" y2="16.5"/><line x1="19" y1="12.5" x2="19" y2="3"/><circle cx="5" cy="11.5" r="2"/><circle cx="12" cy="9.5" r="2"/><circle cx="19" cy="14.5" r="2"/></symbol>
+<symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 2.5v6L4.3 17a2.2 2.2 0 0 0 1.9 3.3h11.6a2.2 2.2 0 0 0 1.9-3.3L15 8.5v-6"/><line x1="8" y1="2.5" x2="16" y2="2.5"/><line x1="7.2" y1="14.5" x2="16.8" y2="14.5"/></symbol>
+<symbol id="i-bug" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="12" rx="5"/><path d="M8.5 6.5a3.5 3.5 0 1 1 7 0"/><line x1="12" y1="8" x2="12" y2="19"/><line x1="4.5" y1="9" x2="7" y2="10.8"/><line x1="19.5" y1="9" x2="17" y2="10.8"/><line x1="4.5" y1="17" x2="7" y2="15.5"/><line x1="19.5" y1="17" x2="17" y2="15.5"/></symbol>
+<symbol id="i-store" viewBox="0 0 24 24"><path d="M4 3h16l-1.3 5H5.3z"/><path d="M4.7 8 5 19.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1L19.3 8"/><line x1="9.5" y1="12" x2="9.5" y2="16"/><line x1="14.5" y1="12" x2="14.5" y2="16"/></symbol>
+<symbol id="i-thermo" viewBox="0 0 24 24"><path d="M12 14.5V5a2 2 0 1 0-4 0v9.5a4 4 0 1 0 4 0z"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.5 9a8.5 8.5 0 0 1 14.5-4.9L23 10M1 14l5 4.9A8.5 8.5 0 0 0 20.5 15"/></symbol>
+</svg>
+
+<div class="ticker-wrap"><div class="ticker" id="ticker">
+  <span class="tk-live"><span class="tk-dot"></span>LIVE</span>
+</div></div>
 
 <header><div class="hin">
-  <div class="logo">🚜</div>
-  <div class="wordmark">KISAN <em>COPILOT</em></div>
-  <button class="distchip" id="distchip"><span>📍</span><span id="distname">Warangal</span></button>
-  <span class="hdot" id="hdot" title="backend status"></span>
+  <div class="logo"><svg class="ic"><use href="#i-sprout"/></svg></div>
+  <div class="brandtxt"><b>Kisan Copilot</b><small>Voice advisory · Snowflake CoCo</small></div>
+  <button class="distchip" id="distchip">
+    <svg class="ic"><use href="#i-pin"/></svg><b id="distname">Warangal</b>
+    <svg class="ic" style="width:12px;height:12px"><use href="#i-chevron-down"/></svg>
+  </button>
+  <button class="hbtn" id="healthbtn" title="System status"><svg class="ic" style="width:15px;height:15px"><use href="#i-activity"/></svg></button>
+  <span class="hdot" id="hdot"></span>
 </div></header>
 
 <main>
   <!-- HOME -->
   <section class="screen on" id="scr-home">
+    <span class="eyebrow">Home</span>
     <h1>What does your farm need today?</h1>
-    <div class="askcard" id="askcoco">
-      <div class="micbox">🎙️</div>
-      <b>Ask CoCo</b>
-      <div class="s">speak or type — any language</div>
+    <div class="actioncard" id="askcoco">
+      <div class="badge"><svg class="ic"><use href="#i-mic"/></svg></div>
+      <div class="tx"><b>Ask CoCo</b><span>Speak or type — any language</span></div>
+      <svg class="ic chev"><use href="#i-chevron-right"/></svg>
     </div>
     <div class="strip" id="localstrip"></div>
     <div class="grid2">
-      <button class="tilebtn" data-go="prices"><span class="ic">🏷️</span>Market Prices</button>
-      <button class="tilebtn" data-go="guide"><span class="ic">🌱</span>Crop Guide</button>
-      <button class="tilebtn" id="howbtn"><span class="ic">💡</span>How it works</button>
-      <button class="tilebtn" id="farmbtn"><span class="ic">🏡</span>My Farm</button>
+      <button class="tilebtn" data-go="prices"><span class="badge"><svg class="ic"><use href="#i-tag"/></svg></span><b>Market Prices</b></button>
+      <button class="tilebtn" data-go="guide"><span class="badge"><svg class="ic"><use href="#i-leaf"/></svg></span><b>Crop Guide</b></button>
+      <button class="tilebtn" id="howbtn"><span class="badge"><svg class="ic"><use href="#i-info"/></svg></span><b>How it works</b></button>
+      <button class="tilebtn" id="farmbtn"><span class="badge"><svg class="ic"><use href="#i-sliders"/></svg></span><b>My Farm</b></button>
     </div>
     <div class="stats" id="stats"></div>
-    <p class="foot" id="homefoot"></p>
+    <p class="footnote" id="homefoot"></p>
   </section>
 
   <!-- ASK -->
   <section class="screen" id="scr-ask">
-    <h1 style="font-size:1.2rem">Ask CoCo <span class="sub" style="font-size:.8rem">— it finds your district & crop from what you say</span></h1>
+    <span class="eyebrow">Ask CoCo</span>
+    <h1 style="font-size:1.1rem">Finds your district &amp; crop from what you say</h1>
     <div class="examples" id="examples">
-      <button class="ex">పది రోజులుగా వాన లేదు, వరంగల్ లో నా పత్తికి నీళ్లు పెట్టాలా?<small>Telugu · cotton · Warangal</small></button>
-      <button class="ex">मेरा गेहूं करनाल में बेचूं या रुकूं?<small>Hindi · wheat · Karnal</small></button>
-      <button class="ex">Should I sell my chilli now? I am in Khammam.<small>English · chilli · Khammam</small></button>
-      <button class="ex">What is the apple price in Warangal today?<small>tests the no-invented-price guardrail</small></button>
+      <button class="ex"><svg class="ic"><use href="#i-chat"/></svg><span><b>పది రోజులుగా వాన లేదు, వరంగల్ లో నా పత్తికి నీళ్లు పెట్టాలా?</b><small>TELUGU · COTTON · WARANGAL</small></span></button>
+      <button class="ex"><svg class="ic"><use href="#i-chat"/></svg><span><b>मेरा गेहूं करनाल में बेचूं या रुकूं?</b><small>HINDI · WHEAT · KARNAL</small></span></button>
+      <button class="ex"><svg class="ic"><use href="#i-chat"/></svg><span><b>Should I sell my chilli now? I am in Khammam.</b><small>ENGLISH · CHILLI · KHAMMAM</small></span></button>
+      <button class="ex"><svg class="ic"><use href="#i-chat"/></svg><span><b>What is the apple price in Warangal today?</b><small>TESTS THE NO-INVENTED-PRICE GUARDRAIL</small></span></button>
     </div>
     <div id="thread"></div>
   </section>
 
   <!-- PRICES -->
   <section class="screen" id="scr-prices">
-    <h1 style="font-size:1.2rem">Market Prices <span class="sub" style="font-size:.78rem">— national Agmarknet, latest arrivals</span></h1>
-    <div class="search">🔍<input id="pq" placeholder="Search crop, market or district"></div>
-    <div class="chips" id="pstates"></div>
-    <div class="chips" id="pcrops"></div>
-    <div class="plist" id="plist"><div class="empty">loading…</div></div>
-    <p class="foot">Full national snapshot, refreshed twice daily inside Snowflake.<br>Dates shown are true mandi arrival dates.</p>
+    <span class="eyebrow">Market Prices</span>
+    <h1 style="font-size:1.1rem">National Agmarknet, latest arrivals</h1>
+    <div class="search"><svg class="ic"><use href="#i-search"/></svg><input id="pq" placeholder="Search crop, market or district"></div>
+    <div class="filters">
+      <div class="chips" id="pstates"></div>
+      <div class="chips" id="pcrops"></div>
+    </div>
+    <div class="plist" id="plist"></div>
+    <p class="footnote">Full national snapshot, refreshed twice daily inside Snowflake (13:30 &amp; 18:30 IST). Dates shown are true mandi arrival dates.</p>
   </section>
 
   <!-- GUIDE -->
   <section class="screen" id="scr-guide">
-    <h1 style="font-size:1.2rem">Crop Guide <span class="sub" style="font-size:.78rem">— curated PJTSAU/ICAR corpus</span></h1>
+    <span class="eyebrow">Crop Guide</span>
+    <h1 style="font-size:1.1rem">Curated PJTSAU / ICAR corpus</h1>
     <div class="chips" id="gcrops"></div>
-    <div id="gbody"><div class="empty">loading…</div></div>
-    <p class="foot">Same corpus the copilot retrieves via Cortex Search.<br>Dosages are indicative — confirm with your local agriculture officer.</p>
+    <div id="gbody"></div>
+    <p class="footnote">Same corpus the copilot retrieves via Cortex Search. Dosages are indicative — confirm with your local agriculture officer.</p>
   </section>
 
   <!-- FIELD -->
   <section class="screen" id="scr-field">
-    <div class="f-dist" id="fdist">FIELD MODE · WARANGAL</div>
-    <div class="f-big">Today on<br>your farm</div>
+    <div class="f-head"><svg class="ic"><use href="#i-sun"/></svg><span id="fdist">FIELD MODE · WARANGAL</span></div>
+    <div class="f-big">Today on your farm</div>
     <div class="f-nums" id="fnums"></div>
-    <button class="f-mic" id="fmic">🎤</button>
+    <button class="f-mic" id="fmic"><svg class="ic"><use href="#i-mic"/></svg></button>
     <div class="f-status" id="fstatus">Tap and ask</div>
     <div class="f-answer" id="fanswer"></div>
   </section>
 </main>
 
-<!-- composer (ask tab only) -->
 <div class="composer" id="composer"><div class="cin">
   <div class="bar" id="bar">
     <input id="ti" placeholder="Type in any language… or tap the mic" autocomplete="off">
-    <button class="cbtn" id="sendb" title="Send">➤</button>
-    <button class="cbtn" id="micb" title="Voice question">🎤</button>
+    <button class="cbtn" id="sendb" title="Send"><svg class="ic"><use href="#i-send"/></svg></button>
+    <button class="cbtn" id="micb" title="Voice question"><svg class="ic"><use href="#i-mic"/></svg></button>
   </div>
 </div></div>
 
-<!-- overlays -->
 <div class="overlay" id="ov-how"><div class="ovin">
-  <div class="ovhead"><button class="back" data-close="ov-how">←</button><b>How it works</b></div>
+  <div class="ovhead"><button class="back" data-close="ov-how"><svg class="ic" style="width:16px;height:16px"><use href="#i-arrow-left"/></svg></button><b>How it works</b></div>
   <div class="how">
-    <div class="hstep"><span class="ic">🎙</span><div><b>You speak — or type</b>
-      <p>Ask in your own language, like you would ask a neighbour. Telugu, Hindi, English and more (Sarvam AI speech).</p></div></div>
-    <div class="hstep"><span class="ic">🧭</span><div><b>It understands</b>
-      <p>Your district, crop and language are detected from the question itself — nothing to fill in.</p></div></div>
-    <div class="hstep"><span class="ic">❄️</span><div><b>Snowflake reasons</b>
-      <p>A Cortex agent queries live tables — national mandi prices, your district's weather, the crop calendar, the MSP table — and retrieves agronomy via Cortex Search.</p></div></div>
-    <div class="hstep"><span class="ic">🔒</span><div><b>Grounded numbers only</b>
-      <p>Every figure comes from a query. If your mandi has no data, it says so and names the nearest one that does. It never invents a price.</p></div></div>
-    <div class="hstep"><span class="ic">🔊</span><div><b>Spoken answer + WhatsApp</b>
-      <p>Three short recommendations, spoken back in your language, with the evidence attached — and one tap sends it to a phone.</p></div></div>
+    <div class="hstep"><span class="num">01</span><span class="badge"><svg class="ic"><use href="#i-mic"/></svg></span>
+      <div><b>You speak — or type</b><p>Ask in your own language, the way you'd ask a neighbour. Telugu, Hindi, English and more, via Sarvam AI speech.</p></div></div>
+    <div class="hstep"><span class="num">02</span><span class="badge"><svg class="ic"><use href="#i-pin"/></svg></span>
+      <div><b>It understands</b><p>Your district, crop and language are detected from the question itself — nothing to fill in first.</p></div></div>
+    <div class="hstep"><span class="num">03</span><span class="badge"><svg class="ic"><use href="#i-sprout"/></svg></span>
+      <div><b>Snowflake reasons</b><p>A Cortex agent queries live tables — national mandi prices, your district's weather, the crop calendar, the MSP table — and retrieves agronomy via Cortex Search.</p></div></div>
+    <div class="hstep"><span class="num">04</span><span class="badge"><svg class="ic"><use href="#i-check-circle"/></svg></span>
+      <div><b>Grounded numbers only</b><p>Every figure comes from a query. If your mandi has no data, it says so and names the nearest one that does — it never invents a price.</p></div></div>
+    <div class="hstep"><span class="num">05</span><span class="badge"><svg class="ic"><use href="#i-send"/></svg></span>
+      <div><b>Spoken answer + WhatsApp</b><p>Three short recommendations, spoken back in your language, with evidence attached — one tap sends it to a phone.</p></div></div>
   </div>
-  <div class="stats" id="howstats" style="margin-top:1.2rem"></div>
-  <h1 style="font-size:1.05rem; margin-top:1.6rem">FAQ</h1>
+  <div class="stats" id="howstats" style="margin-top:1.3rem"></div>
+  <h1 style="font-size:1.02rem; margin-top:1.7rem">FAQ</h1>
   <div class="faq">
-    <details><summary>Where does the data come from?</summary>
+    <details><summary>Where does the data come from?<svg class="ic"><use href="#i-chevron-down"/></svg></summary>
       <p>Prices: the government Agmarknet daily feed (data.gov.in), full national snapshot pulled twice a day by a Snowflake task. Weather: Open-Meteo, on demand for any Indian district. Agronomy: a curated corpus distilled from public PJTSAU/ICAR package-of-practices material.</p></details>
-    <details><summary>How fresh is it?</summary>
+    <details><summary>How fresh is it?<svg class="ic"><use href="#i-chevron-down"/></svg></summary>
       <p>Prices refresh at 13:30 and 18:30 IST daily. Cards always show the true mandi arrival date, never a vague "updated X ago".</p></details>
-    <details><summary>Which languages work?</summary>
-      <p>The demo speaks and understands Telugu, Hindi and English via Sarvam AI; the same pipeline extends to India's 22 scheduled languages (e.g. via Bhashini).</p></details>
-    <details><summary>Is this official agricultural advice?</summary>
+    <details><summary>Which languages work?<svg class="ic"><use href="#i-chevron-down"/></svg></summary>
+      <p>The demo speaks and understands Telugu, Hindi and English via Sarvam AI. The same pipeline extends to India's 22 scheduled languages, e.g. via Bhashini.</p></details>
+    <details><summary>Is this official agricultural advice?<svg class="ic"><use href="#i-chevron-down"/></svg></summary>
       <p>No. Dosages and MSP figures are indicative and source-labelled. Always confirm chemicals and doses with your local agriculture officer.</p></details>
-    <details><summary>What if there is no price for my crop here?</summary>
-      <p>It tells you exactly that, shows when your mandi last reported, and quotes the nearest market that has real data — clearly labelled as not local.</p></details>
+    <details><summary>What if there's no price for my crop here?<svg class="ic"><use href="#i-chevron-down"/></svg></summary>
+      <p>It tells you exactly that, shows when your mandi last reported, and quotes the nearest market with real data — clearly labelled as not local.</p></details>
   </div>
 </div></div>
 
 <div class="overlay" id="ov-farm"><div class="ovin">
-  <div class="ovhead"><button class="back" data-close="ov-farm">←</button><b>My Farm</b></div>
-  <p class="sub">Saved on this device. Used for the Home strip, Field Mode numbers and WhatsApp sending — the copilot itself always listens to your question first.</p>
+  <div class="ovhead"><button class="back" data-close="ov-farm"><svg class="ic" style="width:16px;height:16px"><use href="#i-arrow-left"/></svg></button><b>My Farm</b></div>
+  <p class="sub">Saved on this device. Used for the Home strip, Field Mode and WhatsApp sending — the copilot itself always listens to your question first.</p>
   <div class="form">
     <div><label>District</label><input id="f-district" placeholder="e.g. Warangal"></div>
     <div><label>Main crop</label><select id="f-crop">
@@ -375,22 +515,23 @@
       <option>onion</option><option>tomato</option><option>potato</option><option>groundnut</option>
       <option>red gram</option><option>soybean</option><option>wheat</option></select></div>
     <div><label>WhatsApp number</label><input id="f-phone" placeholder="+91XXXXXXXXXX"></div>
-    <button class="btn primary" id="f-save" style="padding:.7rem">Save</button>
+    <button class="btn primary" id="f-save" style="padding:.7rem; justify-content:center">Save</button>
   </div>
 </div></div>
 
 <nav><div class="nin">
-  <button class="nbtn on" data-tab="home"><i>🏠</i>Home</button>
-  <button class="nbtn" data-tab="ask"><i>💬</i>Ask</button>
-  <button class="nbtn" data-tab="prices"><i>🏷️</i>Prices</button>
-  <button class="nbtn" data-tab="guide"><i>🌱</i>Guide</button>
-  <button class="nbtn" data-tab="field"><i>🚜</i>Field</button>
+  <button class="nbtn on" data-tab="home"><span class="icwrap"><svg class="ic"><use href="#i-home"/></svg></span>Home</button>
+  <button class="nbtn" data-tab="ask"><span class="icwrap"><svg class="ic"><use href="#i-chat"/></svg></span>Ask</button>
+  <button class="nbtn" data-tab="prices"><span class="icwrap"><svg class="ic"><use href="#i-tag"/></svg></span>Prices</button>
+  <button class="nbtn" data-tab="guide"><span class="icwrap"><svg class="ic"><use href="#i-leaf"/></svg></span>Guide</button>
+  <button class="nbtn" data-tab="field"><span class="icwrap"><svg class="ic"><use href="#i-sun"/></svg></span>Field</button>
 </div></nav>
 
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt = n => n == null ? "—" : Number(n).toLocaleString("en-IN");
+const icon = (name, cls) => `<svg class="ic ${cls||""}"><use href="#i-${name}"/></svg>`;
 const farm = JSON.parse(localStorage.kcFarm || '{"district":"Warangal","crop":"cotton","phone":""}');
 
 /* ---------- tabs & overlays ---------- */
@@ -413,8 +554,7 @@ $("farmbtn").onclick = $("distchip").onclick = () => {
   $("f-phone").value = farm.phone || "";
   $("ov-farm").classList.add("on");
 };
-document.querySelectorAll("[data-close]").forEach(b =>
-  b.onclick = () => $(b.dataset.close).classList.remove("on"));
+document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => $(b.dataset.close).classList.remove("on"));
 $("f-save").onclick = () => {
   farm.district = $("f-district").value.trim() || "Warangal";
   farm.crop = $("f-crop").value; farm.phone = $("f-phone").value.trim();
@@ -429,34 +569,38 @@ function applyFarm() {
 }
 applyFarm();
 
-/* ---------- health + snapshot (all real numbers) ---------- */
+/* ---------- health + snapshot ---------- */
 fetch("/health").then(r => r.json()).then(h => {
   $("hdot").className = "hdot " + (h.snowflake && h.sarvam_key ? "ok" : "bad");
 }).catch(() => $("hdot").className = "hdot bad");
 
 function loadSnapshot() {
   fetch("/snapshot?district=" + encodeURIComponent(farm.district)).then(r => r.json()).then(s => {
-    const tk = s.ticker.map(t =>
-      `${esc(t.commodity)}: ₹${fmt(t.modal_price)} (${esc(t.state)}, arrivals ${t.d})`).join("  ·  ");
-    $("ticker").textContent = tk ? "LIVE ARRIVALS  ·  " + tk : "no arrivals loaded yet";
-    $("localstrip").innerHTML = s.local_prices.map(p => `<div class="srow">
-      <span>📈</span><span class="c">${esc(p.commodity)}</span>
-      <span>₹${fmt(p.modal_price)}/qtl · ${esc(p.market)}</span>
-      <span class="d">arrivals ${p.d}</span></div>`).join("")
-      || `<div class="srow"><span>ℹ️</span><span>No recent arrivals recorded for ${esc(s.district)} — ask CoCo for the nearest market.</span></div>`;
-    const st = `<div class="stat"><b>${fmt(s.stats.rows)}</b><span>price rows</span></div>
-      <div class="stat"><b>${s.stats.states}</b><span>states</span></div>
-      <div class="stat live"><b>${s.stats.latest_arrival ? s.stats.latest_arrival.slice(5) : "—"}</b><span>latest arrivals</span></div>`;
+    $("ticker").innerHTML = `<span class="tk-live">${icon("activity")}LIVE</span>` +
+      (s.ticker.length ? s.ticker.map(t =>
+        `<span class="tk-item"><b>${esc(t.commodity)}</b> ₹${fmt(t.modal_price)} <i>${esc(t.state)}</i></span><span class="tk-sep">·</span>`
+      ).join("") + s.ticker.map(t =>
+        `<span class="tk-item"><b>${esc(t.commodity)}</b> ₹${fmt(t.modal_price)} <i>${esc(t.state)}</i></span><span class="tk-sep">·</span>`
+      ).join("") : `<span class="tk-item">no arrivals loaded yet</span>`);
+    $("localstrip").innerHTML = s.local_prices.length ? s.local_prices.map(p => {
+      const dir = p.trend_pct == null ? "" : p.trend_pct >= 0 ? "up" : "dn";
+      return `<div class="srow ${dir}">${icon(dir === "dn" ? "trend-down" : "trend-up")}
+        <span class="c">${esc(p.commodity)}</span><span class="p">₹${fmt(p.modal_price)}/qtl · ${esc(p.market)}</span>
+        <span class="d">arrivals ${p.d}</span></div>`; }).join("")
+      : `<div class="srow empty">${icon("info")}No recent arrivals recorded for ${esc(s.district)} — ask CoCo for the nearest market.</div>`;
+    const st = `<div class="stat"><b class="num">${fmt(s.stats.rows)}</b><span>Price rows</span></div>
+      <div class="stat"><b class="num">${s.stats.states}</b><span>States</span></div>
+      <div class="stat live"><b class="num lv">${icon("refresh")}${s.stats.latest_arrival ? s.stats.latest_arrival.slice(5) : "—"}</b><span>Latest arrivals</span></div>`;
     $("stats").innerHTML = st; $("howstats").innerHTML = st;
     $("homefoot").textContent = s.last_refresh
       ? `Pipeline last ran ${s.last_refresh.slice(0, 16)} (runs 13:30 & 18:30 IST inside Snowflake).` : "";
     $("fnums").innerHTML = `
-      <div class="f-num"><div class="k">Rain, last 7 days — ${esc(s.district)}</div>
-        <div class="v"><em>${fmt(s.rain_7d)}</em> mm</div></div>
-      ${s.weather[0] ? `<div class="f-num"><div class="k">Today · max temp / humidity</div>
-        <div class="v">${fmt(s.weather[0].temp_max)}° / ${fmt(s.weather[0].humidity)}%</div></div>` : ""}
-      ${s.local_prices[0] ? `<div class="f-num"><div class="k">${esc(s.local_prices[0].commodity)} · ${esc(s.local_prices[0].market)} · ${s.local_prices[0].d}</div>
-        <div class="v">₹<em>${fmt(s.local_prices[0].modal_price)}</em>/qtl</div></div>` : ""}`;
+      <div class="f-num">${icon("droplet")}<div><div class="k">Rain, last 7 days — ${esc(s.district)}</div>
+        <div class="v"><em>${fmt(s.rain_7d)}</em> mm</div></div></div>
+      ${s.weather[0] ? `<div class="f-num">${icon("thermo")}<div><div class="k">Today · max temp / humidity</div>
+        <div class="v">${fmt(s.weather[0].temp_max)}° / ${fmt(s.weather[0].humidity)}%</div></div></div>` : ""}
+      ${s.local_prices[0] ? `<div class="f-num">${icon("tag")}<div><div class="k">${esc(s.local_prices[0].commodity)} · ${esc(s.local_prices[0].market)} · ${s.local_prices[0].d}</div>
+        <div class="v">₹<em>${fmt(s.local_prices[0].modal_price)}</em>/qtl</div></div></div>` : ""}`;
   }).catch(() => { $("ticker").textContent = "backend offline"; });
 }
 loadSnapshot();
@@ -466,41 +610,38 @@ let pricesLoaded = false, pState = "", pCrop = "", pT;
 const STATES = ["All","Telangana","Andhra Pradesh","Maharashtra","Uttar Pradesh","Tamil Nadu","Himachal Pradesh","Madhya Pradesh","Punjab"];
 const PCROPS = ["All","Cotton","Paddy","Chilli","Onion","Tomato","Potato","Wheat","Maize"];
 function chipRow(el, items, cur, cb) {
-  el.innerHTML = items.map(x =>
-    `<button class="chip ${x === cur || (x === "All" && !cur) ? "on" : ""}">${x}</button>`).join("");
+  el.innerHTML = items.map(x => `<button class="chip ${x === cur || (x === "All" && !cur) ? "on" : ""}">${x}</button>`).join("");
   [...el.children].forEach((c, i) => c.onclick = () => cb(items[i] === "All" ? "" : items[i]));
 }
-function trendSpark(series, cls) {
+function trendSpark(series, dir) {
   if (!series || series.length < 3) return "";
   const min = Math.min(...series), max = Math.max(...series), span = (max - min) || 1;
-  const W = 90, H = 22;
-  const pts = series.map((y, i) =>
-    `${(i * W / (series.length - 1)).toFixed(1)},${(H - (y - min) / span * H).toFixed(1)}`).join(" ");
-  const col = cls === "up" ? "var(--green)" : cls === "dn" ? "var(--red)" : "var(--ink3)";
+  const W = 84, H = 20;
+  const pts = series.map((y, i) => `${(i * W / (series.length - 1)).toFixed(1)},${(H - (y - min) / span * H).toFixed(1)}`).join(" ");
+  const col = dir === "up" ? "var(--data)" : dir === "dn" ? "var(--danger)" : "var(--ink-3)";
   return `<div class="pc-spark"><svg viewBox="-2 -3 ${W + 4} ${H + 6}" preserveAspectRatio="none">
-    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2"
-      stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
 }
 function loadPrices() {
   pricesLoaded = true;
   chipRow($("pstates"), STATES, pState, v => { pState = v; loadPrices(); });
   chipRow($("pcrops"), PCROPS, pCrop, v => { pCrop = v; loadPrices(); });
-  $("plist").innerHTML = `<div class="empty">loading live prices…</div>`;
+  $("plist").innerHTML = `<div class="empty">${icon("refresh")}Loading live prices…</div>`;
   const q = new URLSearchParams({q: $("pq").value.trim(), state: pState, commodity: pCrop});
   fetch("/prices?" + q).then(r => r.json()).then(rows => {
-    if (!rows.length) { $("plist").innerHTML = `<div class="empty">No arrivals matching that in the last 14 days — that's the honest answer, not a blank chart.</div>`; return; }
+    if (!rows.length) { $("plist").innerHTML = `<div class="empty">${icon("alert")}No arrivals matching that in the last 14 days — that's the honest answer, not a blank chart.</div>`; return; }
     $("plist").innerHTML = rows.map(r => {
-      const cls = r.trend_pct == null ? "fl" : r.trend_pct > 1 ? "up" : r.trend_pct < -1 ? "dn" : "fl";
-      const tr = r.trend_pct == null ? `<span style="color:var(--ink3)">first record</span>`
-        : `<span class="${r.trend_pct >= 0 ? "up" : "down"}">${r.trend_pct >= 0 ? "↗" : "↘"} ${Math.abs(r.trend_pct)}%</span>`;
-      return `<div class="pcard ${cls}">
+      const dir = r.trend_pct == null ? "" : r.trend_pct > 1 ? "up" : r.trend_pct < -1 ? "dn" : "";
+      const trendMarkup = r.trend_pct == null ? `<span style="color:var(--ink-3)">first record</span>`
+        : `<span class="${r.trend_pct >= 0 ? "updir" : "dndir"}">${icon(r.trend_pct >= 0 ? "trend-up" : "trend-down")}${Math.abs(r.trend_pct)}%</span>`;
+      return `<div class="pcard ${dir}">
         <div><div class="pc-name">${esc(r.commodity)}</div>
           <div class="pc-mkt">${esc(r.market)}, ${esc(r.district)} · ${esc(r.state)}</div>
           <div class="pc-price">₹${fmt(r.price)} <small>/quintal</small></div></div>
-        <div class="pc-right"><div class="pc-trend">${tr}</div>
-          ${trendSpark(r.series, cls)}<div class="pc-date">arrivals ${r.arrival_date}</div></div>
+        <div class="pc-right"><div class="pc-trend">${trendMarkup}</div>
+          ${trendSpark(r.series, dir)}<div class="pc-date">arrivals ${r.arrival_date}</div></div>
       </div>`; }).join("");
-  }).catch(e => $("plist").innerHTML = `<div class="empty">⚠︎ ${esc(e.message)}</div>`);
+  }).catch(e => $("plist").innerHTML = `<div class="empty">${icon("alert")}${esc(e.message)}</div>`);
 }
 $("pq").addEventListener("input", () => { clearTimeout(pT); pT = setTimeout(loadPrices, 450); });
 
@@ -508,51 +649,50 @@ $("pq").addEventListener("input", () => { clearTimeout(pT); pT = setTimeout(load
 let guideLoaded = false;
 const GCROPS = ["cotton","paddy","chilli","maize","onion","tomato","potato","groundnut","red gram","soybean","wheat"];
 const TOPIC_META = {
-  sowing_seeds: ["📄","Sowing & Seeds"], fertilizer: ["⚗️","Fertilizer"],
-  irrigation: ["💧","Irrigation"], pests_diseases: ["🐛","Pests & Diseases"],
-  harvest_market: ["🛒","Harvest & Market"] };
+  sowing_seeds: ["sprout","Sowing & Seeds"], fertilizer: ["flask","Fertilizer"],
+  irrigation: ["droplet","Irrigation"], pests_diseases: ["bug","Pests & Diseases"],
+  harvest_market: ["store","Harvest & Market"] };
 const MONTHS = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function loadGuide(crop) {
   guideLoaded = true;
   chipRow($("gcrops"), GCROPS.map(c => c[0].toUpperCase() + c.slice(1)), crop[0].toUpperCase() + crop.slice(1),
           v => loadGuide((v || "cotton").toLowerCase()));
-  $("gbody").innerHTML = `<div class="empty">loading…</div>`;
+  $("gbody").innerHTML = `<div class="empty">${icon("refresh")}Loading…</div>`;
   fetch("/guide?crop=" + encodeURIComponent(crop)).then(r => r.json()).then(g => {
     const stages = g.stages.map(s => `<div class="stg ${s.current ? "cur" : ""}">
       <b>${esc(s.stage)}</b><span>${MONTHS[s.stage_start_month]}–${MONTHS[s.stage_end_month]} · water: ${esc(s.water_need)}</span>
-      ${s.current ? `<div class="cur-tag">● NOW</div>` : ""}</div>`).join("");
-    const msp = g.msp.length ? `<div class="s" style="margin-top:.4rem">MSP ${esc(g.msp[0].marketing_year)} (indicative): ` +
+      ${s.current ? `<div class="cur-tag"><span class="dot"></span>NOW</div>` : ""}</div>`).join("");
+    const msp = g.msp.length ? `<div class="msp-line">MSP ${esc(g.msp[0].marketing_year)} (indicative): ` +
       g.msp.map(m => `₹${fmt(m.msp_per_quintal)}${m.variety_note !== "-" ? " (" + esc(m.variety_note) + ")" : ""}`).join(" · ") + `</div>` : "";
     $("gbody").innerHTML = `
-      <div class="ghero"><span class="k">Region: ${esc(g.region || "—")}</span>
+      <div class="ghero"><span class="eyebrow">Region: ${esc(g.region || "—")}</span>
         <b>${esc(crop[0].toUpperCase() + crop.slice(1))} Guide</b>
-        <div class="s">From the curated corpus the copilot itself retrieves.</div>${msp}</div>
+        <span class="sub">From the same corpus the copilot retrieves via Cortex Search.</span>${msp}</div>
       <div class="stages">${stages || ""}</div>
-      ${g.chunks.map((c, i) => { const [ic, name] = TOPIC_META[c.topic] || ["📘", c.topic];
+      ${g.chunks.map((c, i) => { const [ic, name] = TOPIC_META[c.topic] || ["info", c.topic];
         return `<details class="acc" data-t="${esc(c.topic)}" ${i === 0 ? "open" : ""}>
-          <summary><span class="ic">${ic}</span><span>${name}<small>${esc(c.region)}</small></span></summary>
-          <div class="body">${esc(c.content)}<div class="src">source: ${esc(c.source)}</div></div>
+          <summary><span class="badge">${icon(ic)}</span><span><b>${name}</b><small>${esc(c.region)}</small></span>${icon("chevron-right", "chev")}</summary>
+          <div class="body">${esc(c.content)}<div class="src">Source: ${esc(c.source)}</div></div>
         </details>`; }).join("")}`;
-  }).catch(e => $("gbody").innerHTML = `<div class="empty">⚠︎ ${esc(e.message)}</div>`);
+  }).catch(e => $("gbody").innerHTML = `<div class="empty">${icon("alert")}${esc(e.message)}</div>`);
 }
 
 /* ---------- chat ---------- */
 const thread = $("thread");
 let busy = false;
-document.querySelectorAll(".ex").forEach(b =>
-  b.onclick = () => sendText(b.childNodes[0].textContent.trim()));
+document.querySelectorAll(".ex").forEach(b => b.onclick = () => sendText(b.querySelector("b").textContent.trim()));
 function scrollBottom() { requestAnimationFrame(() => window.scrollTo({top: document.body.scrollHeight, behavior: "smooth"})); }
-function addUser(text) {
+function addUser(text, isVoice) {
   $("examples").style.display = "none";
   const el = document.createElement("div");
-  el.className = "msg user"; el.innerHTML = `<div class="bubble">${esc(text)}</div>`;
+  el.className = "msg user";
+  el.innerHTML = `<div class="bubble">${isVoice ? icon("mic") : ""}<span>${esc(text)}</span></div>`;
   thread.appendChild(el); scrollBottom(); return el;
 }
 function addThinking(label) {
   const el = document.createElement("div");
   el.className = "msg bot";
-  el.innerHTML = `<div class="bubble"><div class="think">
-    <span class="dots"><i></i><i></i><i></i></span><span class="tl">${esc(label)}</span></div></div>`;
+  el.innerHTML = `<div class="bubble"><div class="think">${icon("refresh")}<span class="tl">${esc(label)}</span></div></div>`;
   thread.appendChild(el); scrollBottom();
   const tl = el.querySelector(".tl");
   const stages = ["Snowflake reasoning — live weather, prices, agronomy…", "Composing advice…", "Translating & speaking…"];
@@ -565,59 +705,58 @@ function bigSpark(rows) {
   if (!rows || rows.length < 3) return "";
   const pts = [...rows].reverse(), ys = pts.map(p => +p.modal_price);
   const min = Math.min(...ys), max = Math.max(...ys), span = (max - min) || 1;
-  const W = 130, H = 30;
+  const W = 126, H = 28;
   const xy = i => [i * W / (pts.length - 1), H - ((ys[i] - min) / span) * H];
   const path = ys.map((_, i) => xy(i).map(v => v.toFixed(1)).join(",")).join(" ");
   const [lx, ly] = xy(pts.length - 1);
   const hits = pts.map((p, i) => { const [x, y] = xy(i);
     return `<circle cx="${x}" cy="${y}" r="9" fill="transparent"><title>₹${fmt(p.modal_price)} · ${esc(p.market)} · ${p.arrival_date}</title></circle>`; }).join("");
   return `<div class="spark"><svg viewBox="-4 -6 ${W + 8} ${H + 12}" preserveAspectRatio="none">
-    <polyline points="${path}" fill="none" stroke="var(--data)" stroke-width="2"
-      stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="${path}" fill="none" stroke="var(--data)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     <circle cx="${lx}" cy="${ly}" r="3" fill="var(--data)"/>${hits}</svg></div>`;
 }
 function renderAnswer(j, intoField) {
   if (intoField) {
     $("fanswer").textContent = j.spoken_text;
-    $("fstatus").textContent = "Answered — " + esc(j.district);
+    $("fstatus").textContent = "Answered — " + j.district;
     if (j.audio_base64) new Audio("data:audio/wav;base64," + j.audio_base64).play().catch(() => {});
     return;
   }
   const ev = j.evidence || {}, w = ev.weather || {}, t = ev.price_trend, msp = (ev.msp || [])[0];
   const tier = ev.price_tier_used;
-  const tierTag = tier === "district" ? `<span class="tag">🏪 LOCAL MANDI</span>`
-    : `<span class="tag warn">⚠︎ NO LOCAL PRICE — ${tier === "state" ? "STATE" : "ALL-INDIA"} SHOWN</span>`;
-  const noteTag = ev.district_note ? `<span class="tag warn">📍 ${esc(ev.district_note)}</span>` : "";
+  const tierTag = tier === "district" ? `<span class="tag ok">${icon("tag")}LOCAL MANDI</span>`
+    : `<span class="tag warn">${icon("alert")}NO LOCAL PRICE — ${tier === "state" ? "STATE" : "ALL-INDIA"}</span>`;
+  const noteTag = ev.district_note ? `<span class="tag warn">${icon("pin")}${esc(ev.district_note)}</span>` : "";
   let pct = "";
   if (t && t.prior_avg) {
     const p = 100 * (t.latest_avg - t.prior_avg) / t.prior_avg;
-    pct = `<span class="${p >= 0 ? "up" : "down"}">${p >= 0 ? "▲" : "▼"} ${Math.abs(p).toFixed(1)}%</span>`;
+    pct = `<span class="${p >= 0 ? "updir" : "dndir"}">${icon(p >= 0 ? "trend-up" : "trend-down")}${Math.abs(p).toFixed(1)}%</span>`;
   }
   const el = document.createElement("div");
   el.className = "msg bot";
   el.innerHTML = `<div class="bubble">
-    <div class="meta" style="margin:0 0 .6rem"><span class="tag">📍 ${esc(j.district).toUpperCase()}</span>
-      ${j.crop ? `<span class="tag">🌱 ${esc(j.crop).toUpperCase()}</span>` : ""}
+    <div class="meta"><span class="tag">${icon("pin")}${esc(j.district).toUpperCase()}</span>
+      ${j.crop ? `<span class="tag">${icon("leaf")}${esc(j.crop).toUpperCase()}</span>` : ""}
       <span class="tag">${esc(j.language_code)}</span>${tierTag}${noteTag}</div>
     <div class="native">${esc(j.spoken_text)}</div>
     ${j.english && j.english !== j.spoken_text ? `<div class="english">${esc(j.english)}</div>` : ""}
-    <div class="arow">${j.audio_base64 ? `<button class="btn primary replay">🔊 Play</button>` : ""}</div>
+    ${j.audio_base64 ? `<div class="arow"><button class="btn primary replay">${icon("send")}Play answer</button></div>` : ""}
     <div class="tiles">
-      <div class="tile"><div class="k">Rain · 7 days</div><div class="v">${fmt(w.rain_last_7_days_mm)} mm</div>
+      <div class="tile"><div class="k">${icon("droplet")}Rain · 7 days</div><div class="v">${fmt(w.rain_last_7_days_mm)} mm</div>
         <div class="s">humidity ${fmt(w.today && w.today.humidity)}%</div></div>
-      ${t ? `<div class="tile"><div class="k">Latest price</div><div class="v">₹${fmt(t.latest_avg)} ${pct}</div>
+      ${t ? `<div class="tile"><div class="k">${icon("tag")}Latest price</div><div class="v">₹${fmt(t.latest_avg)} ${pct}</div>
         <div class="s">wk avg ₹${fmt(t.prior_avg)} · /quintal</div>${bigSpark(ev.price_rows)}</div>` : ""}
-      ${msp ? `<div class="tile"><div class="k">MSP ${esc(msp.marketing_year)}</div><div class="v">₹${fmt(msp.msp_per_quintal)}</div>
+      ${msp ? `<div class="tile"><div class="k">${icon("info")}MSP ${esc(msp.marketing_year)}</div><div class="v">₹${fmt(msp.msp_per_quintal)}</div>
         <div class="s">${esc(msp.variety_note !== "-" ? msp.variety_note : msp.commodity)} · indicative</div></div>` : ""}
-      ${(ev.crop_stage || [])[0] ? `<div class="tile"><div class="k">Crop stage</div>
+      ${(ev.crop_stage || [])[0] ? `<div class="tile"><div class="k">${icon("sprout")}Crop stage</div>
         <div class="v" style="font-size:.9rem; font-family:inherit">${esc(ev.crop_stage[0].stage)}</div>
         <div class="s">water need: ${esc(ev.crop_stage[0].water_need)}</div></div>` : ""}
     </div>
     <div class="send"><label>Send to farmer's WhatsApp</label>
       <div class="row"><input type="tel" class="phone" placeholder="+91XXXXXXXXXX" value="${esc(localStorage.kcPhone || "")}">
-        <button class="btn primary wsend">Send ➤</button></div>
+        <button class="btn primary wsend">${icon("send")}Send</button></div>
       <div class="sendnote"></div></div>
-    <details class="ev"><summary>EVIDENCE — every number, from Snowflake</summary>
+    <details class="ev"><summary>${icon("info")}EVIDENCE — every number, from Snowflake</summary>
       <pre>${esc(JSON.stringify(ev, null, 2))}</pre></details>
   </div>`;
   thread.appendChild(el);
@@ -629,24 +768,23 @@ function renderAnswer(j, intoField) {
   const btn = el.querySelector(".wsend"), phone = el.querySelector(".phone"), note = el.querySelector(".sendnote");
   btn.onclick = async () => {
     const to = phone.value.trim();
-    if (!/^\+\d{10,14}$/.test(to)) { note.textContent = "Number format: +91XXXXXXXXXX"; note.className = "sendnote err"; return; }
-    localStorage.kcPhone = to; btn.disabled = true; note.textContent = "Sending…"; note.className = "sendnote";
+    if (!/^\+\d{10,14}$/.test(to)) { note.innerHTML = icon("alert") + "Number format: +91XXXXXXXXXX"; note.className = "sendnote err"; return; }
+    localStorage.kcPhone = to; btn.disabled = true; note.innerHTML = icon("refresh") + "Sending…"; note.className = "sendnote";
     try {
       const r = await fetch("/send", { method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({to, text: "🌾 Kisan Copilot:\n" + j.spoken_text}) });
+        body: JSON.stringify({to, text: "Kisan Copilot:\n" + j.spoken_text}) });
       const res = await r.json();
-      if (res.ok && !res.dry_run) { note.textContent = "✓ Sent on WhatsApp"; note.className = "sendnote ok"; }
-      else if (res.dry_run) { note.textContent = "Dry-run — Twilio creds not configured"; note.className = "sendnote"; }
-      else { note.textContent = res.error || "send failed"; note.className = "sendnote err"; }
-    } catch (e) { note.textContent = e.message; note.className = "sendnote err"; }
+      if (res.ok && !res.dry_run) { note.innerHTML = icon("check-circle") + "Sent on WhatsApp"; note.className = "sendnote ok"; }
+      else if (res.dry_run) { note.innerHTML = icon("info") + "Dry-run — Twilio creds not configured"; note.className = "sendnote"; }
+      else { note.innerHTML = icon("alert") + (res.error || "send failed"); note.className = "sendnote err"; }
+    } catch (e) { note.innerHTML = icon("alert") + esc(e.message); note.className = "sendnote err"; }
     btn.disabled = false;
   };
   scrollBottom();
 }
 function fail(thinkEl, msg) {
   thinkEl.stop && thinkEl.stop();
-  thinkEl.querySelector(".bubble").innerHTML =
-    `<span style="color:var(--red);font-size:.88rem">⚠︎ ${esc(msg)}</span>`;
+  thinkEl.querySelector(".bubble").innerHTML = `<div class="think" style="color:var(--danger)">${icon("alert")}${esc(msg)}</div>`;
 }
 async function sendText(text) {
   text = (text || "").trim();
@@ -655,8 +793,7 @@ async function sendText(text) {
   addUser(text);
   const th = addThinking("Snowflake reasoning — live weather, prices, agronomy…");
   try {
-    const r = await fetch("/ask_text", { method:"POST",
-      headers:{"Content-Type":"application/json"}, body: JSON.stringify({text}) });
+    const r = await fetch("/ask_text", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text}) });
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "HTTP " + r.status);
     th.stop(); th.remove(); renderAnswer(j);
@@ -689,15 +826,15 @@ async function recStart(target) {
   proc.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
   src.connect(proc); proc.connect(ctx.destination);
   recording = true;
-  if (target === "ask") { $("micb").classList.add("rec"); $("micb").textContent = "⏹";
-    $("bar").classList.add("rec"); $("ti").placeholder = "Listening… tap ⏹ when done"; $("ti").disabled = true; }
-  else { $("fmic").classList.add("rec"); $("fmic").textContent = "⏹"; $("fstatus").textContent = "Listening… tap again when done"; }
+  if (target === "ask") { $("micb").classList.add("rec"); $("bar").classList.add("rec");
+    $("ti").placeholder = "Listening… tap the mic when done"; $("ti").disabled = true; }
+  else { $("fmic").classList.add("rec"); $("fstatus").textContent = "Listening… tap again when done"; }
 }
 async function recStop() {
   recording = false;
-  $("micb").classList.remove("rec"); $("micb").textContent = "🎤";
-  $("bar").classList.remove("rec"); $("ti").placeholder = "Type in any language… or tap the mic"; $("ti").disabled = false;
-  $("fmic").classList.remove("rec"); $("fmic").textContent = "🎤";
+  $("micb").classList.remove("rec"); $("bar").classList.remove("rec");
+  $("ti").placeholder = "Type in any language… or tap the mic"; $("ti").disabled = false;
+  $("fmic").classList.remove("rec");
   proc.disconnect(); stream.getTracks().forEach(t => t.stop());
   const flat = new Float32Array(chunks.reduce((n,c) => n+c.length, 0));
   let o = 0; chunks.forEach(c => { flat.set(c, o); o += c.length; });
@@ -706,25 +843,23 @@ async function recStop() {
   const isField = recTarget === "field";
   let ub, th;
   if (isField) { $("fstatus").textContent = "Thinking — Snowflake reasoning…"; $("fanswer").textContent = ""; }
-  else { ub = addUser("🎤 voice question…"); th = addThinking("Transcribing your voice…"); }
+  else { ub = addUser("Voice question…", true); th = addThinking("Transcribing your voice…"); }
   const fd = new FormData(); fd.append("audio", blob, "question.wav");
   try {
     const r = await fetch("/ask", {method:"POST", body: fd});
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || "HTTP " + r.status);
     if (isField) renderAnswer(j, true);
-    else { ub.querySelector(".bubble").textContent = "🎤 “" + j.transcript + "”";
+    else { ub.querySelector("span").textContent = "“" + j.transcript + "”";
            th.stop(); th.remove(); renderAnswer(j); }
   } catch (e) {
-    if (isField) $("fstatus").textContent = "⚠︎ " + e.message;
+    if (isField) $("fstatus").textContent = "⚠ " + e.message;
     else fail(th, e.message);
   }
   setBusy(false);
 }
-$("micb").onclick = () => recording ? recStop() :
-  recStart("ask").catch(e => { const th = addThinking(""); fail(th, "mic: " + e.message); });
-$("fmic").onclick = () => recording ? recStop() :
-  recStart("field").catch(e => $("fstatus").textContent = "mic: " + e.message);
+$("micb").onclick = () => recording ? recStop() : recStart("ask").catch(e => { const th = addThinking(""); fail(th, "mic: " + e.message); });
+$("fmic").onclick = () => recording ? recStop() : recStart("field").catch(e => $("fstatus").textContent = "mic: " + e.message);
 $("sendb").onclick = () => sendText($("ti").value);
 $("ti").addEventListener("keydown", e => { if (e.key === "Enter") sendText($("ti").value); });
 $("ti").addEventListener("input", () => $("sendb").classList.toggle("ready", !!$("ti").value.trim()));
