@@ -23,6 +23,7 @@ CREATE OR REPLACE PROCEDURE AGRI.PUBLIC.ANSWER_FARMER(
 AS
 $$
 import json
+import re
 
 MODEL = "llama3.3-70b"
 
@@ -87,9 +88,11 @@ CROP_WORDS = [
 
 
 def detect_crop_words(question):
+    # Word-boundary match, not substring: naive `w in low` let "rice" (paddy)
+    # match inside "price", misdetecting almost every price question as paddy.
     low = question.lower()
     for crop_name, words in CROP_WORDS:
-        if any(w in low for w in words):
+        if any(re.search(r"\b" + re.escape(w.lower()) + r"\b", low) for w in words):
             return crop_name
     return ""
 
@@ -119,21 +122,26 @@ def extract_entities(session, question):
 
 
 def main(session, district_name, crop_name, question, language):
-    district = (district_name or "").strip().title()
-    crop = (crop_name or "").strip()
+    # district_name/crop_name are the caller's SAVED DEFAULT (e.g. My Farm),
+    # not authoritative — if the farmer names a different place/crop in the
+    # message itself, that must win. Only fall back to the default when the
+    # message says nothing.
+    default_district = (district_name or "").strip().title()
+    default_crop = (crop_name or "").strip()
     language = (language or "").strip().title()
 
-    # Detect whatever the caller did not supply, from the message itself.
-    crop = crop or detect_crop_words(question)
-    if not district or not crop or language in ("", "Auto"):
-        ex_district, ex_crop, ex_language = extract_entities(session, question)
-        district = district or ex_district
-        crop = crop or ex_crop
-        if language in ("", "Auto"):
-            language = ex_language or "English"
+    msg_crop = detect_crop_words(question)
+    ex_district, ex_crop, ex_language = extract_entities(session, question)
+    district = ex_district or default_district
+    crop = msg_crop or ex_crop or default_crop
+    if language in ("", "Auto"):
+        language = ex_language or "English"
+
     fallback_note = None
     if not district:
         district, fallback_note = "Warangal", "no district mentioned - using default"
+    elif not ex_district and default_district:
+        fallback_note = f"no district mentioned - using your saved default ({default_district})"
     pats = patterns_for(crop)
 
     # 1. Live weather (proc geocodes + caches + merges history).
@@ -292,8 +300,12 @@ Compose EXACTLY three one-sentence recommendations, in this order:
 3. Pest/crop watch — follow DATA.computed_hints.pest: name the specific
    pest/disease and the concrete check action. Call dosages indicative.
 
-The hints are the decisions; your job is warm, clear phrasing — never
-reverse or re-decide them, never add figures that are not in DATA.
+The hints are the decisions, not phrasing to copy: rewrite them as warm,
+natural spoken sentences and never reverse or re-decide them, never add
+figures that are not in DATA. Do NOT reproduce their internal labels
+(WET, DRY, MODERATE, RISING, FALLING, STEADY, WATCH FOR, ACTION, NO LOCAL
+DATA) or any ALL-CAPS tag in your answer — those are notes to you, not
+words a farmer should hear.
 Keep the three sentences short and speakable (under 90 words total).
 Respond with STRICT JSON only, no markdown fences:
 {{"spoken": "<the 3 sentences in {language}>", "english": "<English translation>"}}
@@ -308,6 +320,29 @@ If {language} is English, make both fields the same English text."""
         composed = json.loads(raw)
     except Exception:
         composed = {"spoken": raw, "english": raw}
+
+    # Defensive net: if the model leaked internal hint labels instead of
+    # composing prose (rare, seen on code-mixed input), replace with a
+    # guaranteed-clean sentence built straight from the hints — better a
+    # plain sentence than raw "WET:"/"RISING:" tags mistranslated verbatim.
+    leak_tags = ("WET", "DRY in high-need stage", "MODERATE", "RISING",
+                 "FALLING", "STEADY", "WATCH FOR", "NO LOCAL DATA")
+    english = composed.get("english") or ""
+    if sum(1 for t in leak_tags if t + ":" in english) >= 2:
+        def clean_hint(v):
+            v = re.sub(r"\s*Phrase exactly.*$", "", v, flags=re.IGNORECASE)
+            for t in leak_tags + ("ACTION",):
+                v = re.sub(re.escape(t) + r"\s*:\s*", "", v)
+            v = re.sub(r"\s*-\s*advise\s*", " ", v, flags=re.IGNORECASE)
+            v = re.sub(r"\s{2,}", " ", v).strip(" ;.-")
+            return v
+        clean = []
+        for key in ("irrigation", "sell", "pest"):
+            v = clean_hint(hints.get(key) or "")
+            if v:
+                clean.append(v[0].upper() + v[1:] + ".")
+        fallback_text = " ".join(clean)
+        composed = {"spoken": fallback_text, "english": fallback_text}
 
     return {"district": district, "crop": crop, "language": language,
             "spoken": composed.get("spoken"), "english": composed.get("english"),

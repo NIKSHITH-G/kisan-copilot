@@ -49,6 +49,7 @@ class TextAsk(BaseModel):
     district: str = ""       # optional — Snowflake extracts it from the message
     crop: str = ""
     language_code: str = ""  # optional — auto-detected when empty
+    want_audio: bool = True  # set false to skip Sarvam TTS (e.g. bulk testing)
 
 
 def _answer(transcript: str, language_code: str, district: str, crop: str,
@@ -105,7 +106,10 @@ async def ask_voice(audio: UploadFile = File(...),
 
 @app.post("/ask_text")
 def ask_text(body: TextAsk):
-    return _answer(body.text, body.language_code, body.district, body.crop)
+    if not body.text.strip():
+        raise HTTPException(status_code=422, detail="question text is empty")
+    return _answer(body.text, body.language_code, body.district, body.crop,
+                    want_audio=body.want_audio)
 
 
 import time as _time
@@ -188,9 +192,14 @@ def guide(crop: str = "cotton"):
                FROM AGRI.PUBLIC.CROP_CALENDAR WHERE crop ILIKE %s
                ORDER BY stage_start_month""", (f"%{crop}%",))
         month = _dt.now().month
-        for s in stages:
+        current_idx = None
+        for i, s in enumerate(stages):
             a, b = int(s["stage_start_month"]), int(s["stage_end_month"])
-            s["current"] = (a <= month <= b) if a <= b else (month >= a or month <= b)
+            s["current"] = False
+            if (a <= month <= b) if a <= b else (month >= a or month <= b):
+                current_idx = i  # stages sharing a boundary month: the later stage wins
+        if current_idx is not None:
+            stages[current_idx]["current"] = True
         msp = snowflake_client.query(
             "SELECT variety_note, marketing_year, msp_per_quintal FROM AGRI.PUBLIC.MSP "
             "WHERE commodity ILIKE %s", (f"%{crop}%",))
