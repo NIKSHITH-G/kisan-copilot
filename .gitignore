@@ -16,3 +16,6 @@ demo/*.wav
 demo/*.mp3
 demo/*.mp4
 .keys/
+.vercel
+.env*
+.claude/

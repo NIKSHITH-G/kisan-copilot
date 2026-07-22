@@ -18,7 +18,18 @@ def _connect():
     # Key-pair auth: no browser, no token expiry — required for a headless
     # server (the OAuth connection pops login tabs). Falls back to the
     # interactive OAuth connection if no key is configured.
+    #
+    # Serverless (e.g. Vercel) has no persistent filesystem for the key
+    # file, so SF_PRIVATE_KEY may hold the PEM content directly — written
+    # once to /tmp per cold start and reused via SF_PRIVATE_KEY_PATH from
+    # there on.
     key_path = os.environ.get("SF_PRIVATE_KEY_PATH")
+    key_pem = os.environ.get("SF_PRIVATE_KEY")
+    if key_pem and not (key_path and os.path.exists(key_path)):
+        key_path = "/tmp/sf_key.p8"
+        if not os.path.exists(key_path):
+            with open(key_path, "w") as f:
+                f.write(key_pem)
     if key_path and os.path.exists(key_path):
         conn = snowflake.connector.connect(
             account=os.environ.get("SF_ACCOUNT", "bm13081.ap-southeast-2"),
