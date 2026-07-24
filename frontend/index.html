@@ -266,6 +266,8 @@
                        border:1.5px solid var(--danger); animation:ring 1.3s ease-out infinite; }
   @keyframes ring { from { transform:scale(.8); opacity:.9; } to { transform:scale(1.35); opacity:0; } }
   #sendb.ready { background:var(--accent); color:var(--accent-ink); }
+  .revbar audio { flex:1; height:34px; min-width:0; }
+  #revsend { background:var(--accent); color:var(--accent-ink); }
 
   /* ================= PRICES — warm card rows ================= */
   .search { display:flex; align-items:center; gap:.6rem; margin-top:1.1rem; padding:.75rem 1rem;
@@ -355,6 +357,9 @@
   .f-status { text-align:center; font-size:1rem; color:var(--f-ink-2); min-height:1.5em; font-weight:600; }
   .f-hint { text-align:center; font-family:var(--mono); font-size:.62rem; letter-spacing:.08em;
             text-transform:uppercase; color:var(--f-ink-3); margin-top:.35rem; }
+  .f-review { margin-top:.9rem; }
+  .f-review audio { width:100%; }
+  .f-revbtns { display:flex; justify-content:center; gap:.6rem; margin-top:.8rem; }
   .f-answer-wrap { display:none; text-align:left; margin-top:1.4rem; padding-top:1.3rem; border-top:1px solid var(--f-border); }
   .f-answer-wrap.on { display:block; }
   .f-ameta { font-size:.74rem; color:var(--f-ink-2); }
@@ -405,6 +410,7 @@
 <symbol id="i-sprout" viewBox="0 0 24 24"><path d="M12 22v-9"/><path d="M12 13c0-5 4-8 8-8 0 5-3 9-8 9z"/><path d="M12 13C12 9 9 6 5 6c0 4 2.5 7 7 7z"/></symbol>
 <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></symbol>
 <symbol id="i-send" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></symbol>
 <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-4.7 7.6 8.5 8.5 0 0 1-8.2 0L3 21l1.9-5.1a8.38 8.38 0 0 1 0-8.2A8.5 8.5 0 0 1 12.5 3 8.5 8.5 0 0 1 21 11.5z"/></symbol>
 <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.59 13.41 13 21a2 2 0 0 1-2.83 0l-8-8A2 2 0 0 1 2 11.5V4a2 2 0 0 1 2-2h7.5a2 2 0 0 1 1.41.59l8 8a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4"/></symbol>
 <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M5 21c8-1 13-6 14-15C10 7 5 12 5 21z"/><path d="M5 21c2-4 5-7 9-9"/></symbol>
@@ -517,7 +523,14 @@
         <div class="f-panel">
           <button class="f-mic" id="fmic"><svg class="ic"><use href="#i-mic"/></svg></button>
           <div class="f-status" id="fstatus">Tap and ask</div>
-          <div class="f-hint">One tap · any language</div>
+          <div class="f-hint" id="fhint">One tap · any language</div>
+          <div class="f-review" id="freview" style="display:none">
+            <audio id="frevaudio" controls></audio>
+            <div class="f-revbtns">
+              <button class="btn" id="frevdiscard"><svg class="ic"><use href="#i-x"/></svg>Discard</button>
+              <button class="btn primary" id="frevsend"><svg class="ic"><use href="#i-send"/></svg>Send</button>
+            </div>
+          </div>
           <div class="f-answer-wrap" id="fanswerwrap">
             <div class="f-ameta" id="fameta"></div>
             <div class="f-answer" id="fanswer"></div>
@@ -534,6 +547,11 @@
     <input id="ti" placeholder="Type in any language… or tap the mic" autocomplete="off">
     <button class="cbtn" id="sendb" title="Send"><svg class="ic"><use href="#i-send"/></svg></button>
     <button class="cbtn" id="micb" title="Voice question"><svg class="ic"><use href="#i-mic"/></svg></button>
+  </div>
+  <div class="bar revbar" id="revbar" style="display:none">
+    <audio id="revaudio" controls></audio>
+    <button class="cbtn" id="revdiscard" title="Discard recording"><svg class="ic"><use href="#i-x"/></svg></button>
+    <button class="cbtn" id="revsend" title="Send recording"><svg class="ic"><use href="#i-send"/></svg></button>
   </div>
 </div></div>
 
@@ -594,6 +612,15 @@
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function safeJson(r) {
+  // A crashed backend returns a plain-text body ("Internal Server Error"),
+  // not JSON — parsing that with r.json() throws a confusing "unexpected
+  // token" error instead of surfacing the real problem. Read as text once,
+  // then try to parse — a body can only be read from a Response once.
+  const text = await r.text().catch(() => "");
+  try { return JSON.parse(text); }
+  catch { return { detail: text || `HTTP ${r.status}` }; }
+}
 const fmt = n => n == null ? "—" : Number(n).toLocaleString("en-IN");
 const icon = (name, cls) => `<svg class="ic ${cls||""}"><use href="#i-${name}"/></svg>`;
 const LANG_NAMES = {"te-IN":"Telugu","hi-IN":"Hindi","en-IN":"English","ta-IN":"Tamil","kn-IN":"Kannada",
@@ -932,7 +959,7 @@ function renderAnswer(j, intoField) {
     try {
       const r = await fetch("/send", { method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({to, text: "Kisan Copilot:\n" + j.spoken_text}) });
-      const res = await r.json();
+      const res = await safeJson(r);
       if (res.ok && !res.dry_run) { note.innerHTML = icon("check-circle") + "Sent on WhatsApp"; note.className = "sendnote ok"; }
       else if (res.dry_run) { note.innerHTML = icon("info") + "Dry-run — Twilio creds not configured"; note.className = "sendnote"; }
       else { note.innerHTML = icon("alert") + (res.error || "send failed"); note.className = "sendnote err"; }
@@ -954,7 +981,7 @@ async function sendText(text) {
   try {
     const r = await fetch("/ask_text", { method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({text, district: farm.district || "", crop: farm.crop || ""}) });
-    const j = await r.json();
+    const j = await safeJson(r);
     if (!r.ok) throw new Error(j.detail || "HTTP " + r.status);
     th.remove(); renderAnswer(j);
   } catch (e) { fail(th, e.message); }
@@ -963,6 +990,7 @@ async function sendText(text) {
 
 /* ---------- recorder (shared by Ask + Field) ---------- */
 let ctx, proc, stream, chunks = [], recording = false, recTarget = "ask";
+let pendingBlob = null, pendingUrl = null;
 function setBusy(b) { busy = b; $("sendb").disabled = b; $("micb").disabled = b && !recording; $("fmic").disabled = b && !recording; }
 function wavBlob(f32, rate) {
   const pcm = new Int16Array(f32.length);
@@ -991,6 +1019,8 @@ async function recStart(target) {
   else { $("fmic").classList.add("rec"); $("fstatus").textContent = "Listening… tap again when done"; }
 }
 async function recStop() {
+  // Stop and hold the recording for review — sending only happens when the
+  // farmer explicitly taps Send, never automatically on stop.
   recording = false;
   $("micb").classList.remove("rec"); $("bar").classList.remove("rec");
   $("ti").placeholder = "Type in any language… or tap the mic"; $("ti").disabled = false;
@@ -999,8 +1029,47 @@ async function recStop() {
   const flat = new Float32Array(chunks.reduce((n,c) => n+c.length, 0));
   let o = 0; chunks.forEach(c => { flat.set(c, o); o += c.length; });
   const blob = wavBlob(flat, ctx.sampleRate); ctx.close();
-  setBusy(true);
+  pendingBlob = blob;
+  pendingUrl = URL.createObjectURL(blob);
   const isField = recTarget === "field";
+  if (isField) {
+    $("frevaudio").src = pendingUrl;
+    $("fmic").style.display = "none";
+    $("fhint").style.display = "none";
+    $("fstatus").textContent = "Recorded — send it, or discard and try again";
+    $("freview").style.display = "block";
+  } else {
+    $("revaudio").src = pendingUrl;
+    $("bar").style.display = "none";
+    $("revbar").style.display = "flex";
+  }
+}
+function discardRecording(isField) {
+  if (pendingUrl) URL.revokeObjectURL(pendingUrl);
+  pendingBlob = null; pendingUrl = null;
+  if (isField) {
+    $("frevaudio").removeAttribute("src");
+    $("freview").style.display = "none";
+    $("fmic").style.display = "flex";
+    $("fhint").style.display = "block";
+    $("fstatus").textContent = "Tap and ask";
+  } else {
+    $("revaudio").removeAttribute("src");
+    $("revbar").style.display = "none";
+    $("bar").style.display = "flex";
+  }
+}
+async function sendRecording(isField) {
+  if (!pendingBlob) return;
+  const blob = pendingBlob;
+  pendingBlob = null;
+  if (pendingUrl) { URL.revokeObjectURL(pendingUrl); pendingUrl = null; }
+  if (isField) {
+    $("freview").style.display = "none"; $("fmic").style.display = "flex"; $("fhint").style.display = "block";
+  } else {
+    $("revbar").style.display = "none"; $("bar").style.display = "flex";
+  }
+  setBusy(true);
   let ub, th;
   if (isField) { $("fstatus").textContent = "Thinking — Snowflake reasoning…"; $("fanswerwrap").classList.remove("on"); }
   else { ub = addUser("Voice question…", true); th = addThinking("Transcribing your voice…"); }
@@ -1008,7 +1077,7 @@ async function recStop() {
   fd.append("district", farm.district || ""); fd.append("crop", farm.crop || "");
   try {
     const r = await fetch("/ask", {method:"POST", body: fd});
-    const j = await r.json();
+    const j = await safeJson(r);
     if (!r.ok) throw new Error(j.detail || "HTTP " + r.status);
     if (isField) renderAnswer(j, true);
     else { ub.querySelector("span").textContent = "“" + j.transcript + "”";
@@ -1021,6 +1090,10 @@ async function recStop() {
 }
 $("micb").onclick = () => recording ? recStop() : recStart("ask").catch(e => { const th = addThinking(""); fail(th, "mic: " + e.message); });
 $("fmic").onclick = () => recording ? recStop() : recStart("field").catch(e => $("fstatus").textContent = "mic: " + e.message);
+$("revsend").onclick = () => sendRecording(false);
+$("revdiscard").onclick = () => discardRecording(false);
+$("frevsend").onclick = () => sendRecording(true);
+$("frevdiscard").onclick = () => discardRecording(true);
 $("sendb").onclick = () => sendText($("ti").value);
 $("ti").addEventListener("keydown", e => { if (e.key === "Enter") sendText($("ti").value); });
 $("ti").addEventListener("input", () => $("sendb").classList.toggle("ready", !!$("ti").value.trim()));

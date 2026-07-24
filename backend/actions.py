@@ -13,7 +13,9 @@ TWILIO_WHATSAPP_SANDBOX = "whatsapp:+14155238886"  # Twilio's shared sandbox num
 
 
 def _creds():
-    return os.environ.get("TWILIO_SID"), os.environ.get("TWILIO_TOKEN")
+    sid = (os.environ.get("TWILIO_SID") or "").strip() or None
+    token = (os.environ.get("TWILIO_TOKEN") or "").strip() or None
+    return sid, token
 
 
 def send_message(to: str, body: str, channel: str = "whatsapp") -> dict:

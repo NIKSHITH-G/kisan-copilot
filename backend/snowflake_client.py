@@ -24,16 +24,16 @@ def _connect():
     # once to /tmp per cold start and reused via SF_PRIVATE_KEY_PATH from
     # there on.
     key_path = os.environ.get("SF_PRIVATE_KEY_PATH")
-    key_pem = os.environ.get("SF_PRIVATE_KEY")
+    key_pem = (os.environ.get("SF_PRIVATE_KEY") or "").strip()
     if key_pem and not (key_path and os.path.exists(key_path)):
         key_path = "/tmp/sf_key.p8"
         if not os.path.exists(key_path):
             with open(key_path, "w") as f:
-                f.write(key_pem)
+                f.write(key_pem + "\n")
     if key_path and os.path.exists(key_path):
         conn = snowflake.connector.connect(
-            account=os.environ.get("SF_ACCOUNT", "bm13081.ap-southeast-2"),
-            user=os.environ.get("SF_USER", "NIKKY001"),
+            account=(os.environ.get("SF_ACCOUNT") or "bm13081.ap-southeast-2").strip(),
+            user=(os.environ.get("SF_USER") or "NIKKY001").strip(),
             private_key_file=key_path)
     else:
         conn = snowflake.connector.connect(

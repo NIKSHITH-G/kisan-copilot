@@ -25,7 +25,7 @@ NAME_CODES = {v: k for k, v in LANG_NAMES.items()}
 
 
 def _headers():
-    key = os.environ.get("SARVAM_KEY")
+    key = (os.environ.get("SARVAM_KEY") or "").strip() or None
     if not key:
         raise RuntimeError("SARVAM_KEY not set")
     return {"api-subscription-key": key}
