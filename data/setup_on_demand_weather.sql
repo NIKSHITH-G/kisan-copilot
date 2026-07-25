@@ -29,6 +29,15 @@ CREATE TABLE IF NOT EXISTS AGRI.PUBLIC.DISTRICT_GEO (
   cached_at TIMESTAMP_NTZ
 );
 
+-- Full response cache (forecast included) so a burst of questions about the
+-- same district doesn't re-hit Open-Meteo every time — this call alone was
+-- measured at 6+ of ~16s total ANSWER_FARMER time before caching.
+CREATE TABLE IF NOT EXISTS AGRI.PUBLIC.WEATHER_CACHE (
+  district STRING,
+  cached_at TIMESTAMP_NTZ,
+  response VARIANT
+);
+
 CREATE OR REPLACE PROCEDURE AGRI.PUBLIC.GET_DISTRICT_WEATHER(DISTRICT_NAME STRING)
   RETURNS VARIANT
   LANGUAGE PYTHON
@@ -38,12 +47,14 @@ CREATE OR REPLACE PROCEDURE AGRI.PUBLIC.GET_DISTRICT_WEATHER(DISTRICT_NAME STRIN
   EXTERNAL_ACCESS_INTEGRATIONS = (AGRI_APIS_INTEGRATION)
 AS
 $$
+import json
 from datetime import date, datetime, timedelta, timezone
 
 import requests
 
 IST = timezone(timedelta(hours=5, minutes=30))
 HEADERS = {"User-Agent": "kisan-copilot/1.0"}
+CACHE_TTL_MINUTES = 60  # advisory weather doesn't need to be fresher than this
 
 
 def geocode(session, name):
@@ -82,6 +93,14 @@ def main(session, district_name):
     name = (district_name or "").strip().title()
     if not name:
         return {"error": "empty district name"}
+
+    hit = session.sql(
+        "SELECT response FROM AGRI.PUBLIC.WEATHER_CACHE WHERE UPPER(district) = UPPER(?) "
+        "AND cached_at > DATEADD('minute', ?, CURRENT_TIMESTAMP()) LIMIT 1",
+        params=[name, -CACHE_TTL_MINUTES],
+    ).collect()
+    if hit:
+        return json.loads(hit[0][0])
 
     geo = geocode(session, name)
     if geo is None:
@@ -141,7 +160,7 @@ def main(session, district_name):
     """, params=flat).collect()
 
     last7 = [r for r in observed if (today - date.fromisoformat(r[1])).days < 7]
-    return {
+    result = {
         "district": name,
         "resolved_as": f"{resolved}, {state}",
         "latitude": lat, "longitude": lon,
@@ -153,4 +172,15 @@ def main(session, district_name):
                   "humidity": observed[-1][5]} if observed else None,
         "forecast_7_days": forecast,
     }
+
+    session.sql(
+        "MERGE INTO AGRI.PUBLIC.WEATHER_CACHE t USING (SELECT ? d, PARSE_JSON(?) r) s "
+        "ON t.district = s.d "
+        "WHEN MATCHED THEN UPDATE SET t.cached_at = CURRENT_TIMESTAMP(), t.response = s.r "
+        "WHEN NOT MATCHED THEN INSERT (district, cached_at, response) "
+        "VALUES (s.d, CURRENT_TIMESTAMP(), s.r)",
+        params=[name, json.dumps(result)],
+    ).collect()
+
+    return result
 $$;

@@ -57,7 +57,9 @@ def _answer(transcript: str, language_code: str, district: str, crop: str,
     # District/crop/language detection all happen inside ANSWER_FARMER.
     language_name = sarvam.LANG_NAMES.get(language_code, "Auto") if language_code else "Auto"
 
+    t0 = _time.time()
     result = snowflake_client.answer_farmer(district, crop, transcript, language_name)
+    t_proc = _time.time() - t0
     if "error" in result:
         raise HTTPException(status_code=422, detail=result["error"])
     district = result.get("district") or district
@@ -66,6 +68,7 @@ def _answer(transcript: str, language_code: str, district: str, crop: str,
         language_code = sarvam.NAME_CODES.get(result.get("language"), "en-IN")
 
     english = result.get("english") or result.get("spoken") or ""
+    t0 = _time.time()
     if language_code.startswith("en"):
         spoken_text = english
     else:
@@ -75,12 +78,21 @@ def _answer(transcript: str, language_code: str, district: str, crop: str,
             spoken_text = sarvam.translate(english, language_code)
         except Exception:
             spoken_text = result.get("spoken") or english
+    t_translate = _time.time() - t0
 
+    t0 = _time.time()
     audio_b64 = None
     if want_audio:
         audio_b64 = base64.b64encode(
             sarvam.text_to_speech(spoken_text, language_code)).decode()
+    t_tts = _time.time() - t0
 
+    evidence = result.get("evidence") or {}
+    evidence["_backend_timings"] = {
+        "answer_farmer_proc": round(t_proc, 2),
+        "translate": round(t_translate, 2),
+        "tts": round(t_tts, 2),
+    }
     return {
         "transcript": transcript,
         "language_code": language_code,
@@ -89,7 +101,7 @@ def _answer(transcript: str, language_code: str, district: str, crop: str,
         "spoken_text": spoken_text,
         "english": english,
         "audio_base64": audio_b64,
-        "evidence": result.get("evidence"),
+        "evidence": evidence,
     }
 
 

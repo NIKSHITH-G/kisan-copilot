@@ -69,6 +69,7 @@ def text_to_speech(text: str, lang_code: str) -> bytes:
     """WAV bytes; sentence-chunks long text and concatenates the audio."""
     text = text.strip()
     if len(text) <= TTS_CHAR_LIMIT:
+        print(f"[sarvam] tts: 1 chunk, {len(text)} chars total")
         return _tts_chunk(text, lang_code)
 
     chunks, current = [], ""
@@ -81,6 +82,7 @@ def text_to_speech(text: str, lang_code: str) -> bytes:
     if current:
         chunks.append(current)
 
+    print(f"[sarvam] tts: {len(chunks)} chunks, {len(text)} chars total")
     wavs = [_tts_chunk(c, lang_code) for c in chunks]
     out = io.BytesIO()
     with wave.open(io.BytesIO(wavs[0])) as first:

@@ -24,6 +24,7 @@ AS
 $$
 import json
 import re
+import time
 
 MODEL = "llama3.3-70b"
 
@@ -54,6 +55,23 @@ def patterns_for(crop):
 
 def rows_to_dicts(rows, cols):
     return [dict(zip(cols, [str(v) if v is not None else None for v in r])) for r in rows]
+
+
+def get_weather(session, district):
+    # Read WEATHER_CACHE directly first — CALLing GET_DISTRICT_WEATHER as a
+    # nested stored proc costs ~2.4s of pure invocation overhead even on a
+    # cache hit inside it, measured separately from the work it does. Only
+    # pay that cost (and the external Open-Meteo fetch) on an actual miss;
+    # cache table/TTL must match setup_on_demand_weather.sql.
+    hit = session.sql(
+        "SELECT response FROM AGRI.PUBLIC.WEATHER_CACHE WHERE UPPER(district) = UPPER(?) "
+        "AND cached_at > DATEADD('minute', -60, CURRENT_TIMESTAMP()) LIMIT 1",
+        params=[district],
+    ).collect()
+    if hit:
+        return json.loads(hit[0][0])
+    return json.loads(session.sql(
+        "CALL AGRI.PUBLIC.GET_DISTRICT_WEATHER(?)", params=[district]).collect()[0][0])
 
 
 def price_query(session, pats, extra_where, binds):
@@ -122,6 +140,13 @@ def extract_entities(session, question):
 
 
 def main(session, district_name, crop_name, question, language):
+    timings = []
+    _t0 = [time.time()]
+    def mark(label):
+        now = time.time()
+        timings.append((label, round(now - _t0[0], 2)))
+        _t0[0] = now
+
     # district_name/crop_name are the caller's SAVED DEFAULT (e.g. My Farm),
     # not authoritative — if the farmer names a different place/crop in the
     # message itself, that must win. Only fall back to the default when the
@@ -132,6 +157,7 @@ def main(session, district_name, crop_name, question, language):
 
     msg_crop = detect_crop_words(question)
     ex_district, ex_crop, ex_language = extract_entities(session, question)
+    mark("extract_entities")
     district = ex_district or default_district
     crop = msg_crop or ex_crop or default_crop
     if language in ("", "Auto"):
@@ -145,17 +171,16 @@ def main(session, district_name, crop_name, question, language):
     pats = patterns_for(crop)
 
     # 1. Live weather (proc geocodes + caches + merges history).
-    weather = json.loads(session.sql(
-        "CALL AGRI.PUBLIC.GET_DISTRICT_WEATHER(?)", params=[district]).collect()[0][0])
+    weather = get_weather(session, district)
     if "error" in weather and district != "Warangal":
         # Unrecognized place name from extraction — fall back rather than fail.
         fallback_note = f"could not locate '{district}' - using Warangal"
         district = "Warangal"
-        weather = json.loads(session.sql(
-            "CALL AGRI.PUBLIC.GET_DISTRICT_WEATHER(?)", params=[district]).collect()[0][0])
+        weather = get_weather(session, district)
     if "error" in weather:
         return {"error": weather["error"], "district": district}
     state = (weather.get("resolved_as") or "").split(",")[-1].strip()
+    mark("weather")
 
     # 2. Crop stage (month-wrap aware).
     stage = rows_to_dicts(session.sql(
@@ -167,6 +192,7 @@ def main(session, district_name, crop_name, question, language):
                    AND (MONTH(CURRENT_DATE) >= stage_start_month
                         OR MONTH(CURRENT_DATE) <= stage_end_month)))""",
         params=[f"%{crop}%"]).collect(), ["stage", "water_need", "notes"])
+    mark("crop_stage")
 
     # 3. Prices: district -> state -> all-India. Never invent; report the tier.
     tier, prices = "district", price_query(
@@ -176,6 +202,7 @@ def main(session, district_name, crop_name, question, language):
             session, pats, "AND state ILIKE ?", [f"%{state}%"])
     if not prices:
         tier, prices = "all_india", price_query(session, pats, "", [])
+    mark("prices")
 
     last_seen_local = None
     if tier != "district":
@@ -185,6 +212,7 @@ def main(session, district_name, crop_name, question, language):
             f"WHERE ({ors}) AND district ILIKE ?",
             params=pats + [f"%{district}%"]).collect()
         last_seen_local = r[0][0]
+        mark("last_seen_local")
 
     trend = None
     if prices:
@@ -202,6 +230,7 @@ def main(session, district_name, crop_name, question, language):
         f"""SELECT commodity, variety_note, marketing_year, msp_per_quintal
             FROM AGRI.PUBLIC.MSP WHERE {ors}""", params=pats).collect(),
         ["commodity", "variety_note", "marketing_year", "msp_per_quintal"])
+    mark("msp")
 
     # 5. Agronomy via Cortex Search.
     spec = json.dumps({"query": f"{crop} {question}"[:250],
@@ -211,6 +240,7 @@ def main(session, district_name, crop_name, question, language):
         params=[spec]).collect()[0][0]).get("results", [])
     agronomy = [{"crop": h.get("crop"), "topic": h.get("topic"),
                  "content": h.get("content"), "source": h.get("source")} for h in hits]
+    mark("cortex_search")
 
     # Deterministic decisions — the LLM phrases these, it does not re-decide.
     hints = {}
@@ -313,6 +343,7 @@ If {language} is English, make both fields the same English text."""
 
     raw = session.sql("SELECT SNOWFLAKE.CORTEX.COMPLETE(?, ?)",
                       params=[MODEL, prompt]).collect()[0][0].strip()
+    mark("compose")
     if raw.startswith("```"):
         raw = raw.strip("`")
         raw = raw[raw.find("{"):raw.rfind("}") + 1]
@@ -344,6 +375,7 @@ If {language} is English, make both fields the same English text."""
         fallback_text = " ".join(clean)
         composed = {"spoken": fallback_text, "english": fallback_text}
 
+    evidence["_timings"] = timings
     return {"district": district, "crop": crop, "language": language,
             "spoken": composed.get("spoken"), "english": composed.get("english"),
             "model": MODEL, "evidence": evidence}
