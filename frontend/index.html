@@ -995,6 +995,8 @@ function renderAnswer(j, intoField) {
     pct = `<span class="${p >= 0 ? "updir" : "dndir"}">${icon(p >= 0 ? "trend-up" : "trend-down")}${Math.abs(p).toFixed(1)}%</span>`;
   }
   const rows = evidenceRows(ev, j.district);
+  const rainMm = ev.weather && ev.weather.rain_last_7_days_mm;
+  const hasQuickfacts = rainMm != null || t || msp;
   const el = document.createElement("div");
   el.className = "msg rise-in";
   el.innerHTML = `<div class="a-card">
@@ -1006,16 +1008,16 @@ function renderAnswer(j, intoField) {
     <div class="native">${esc(j.spoken_text)}</div>
     ${j.english && j.english !== j.spoken_text ? `<div class="english">${esc(j.english)}</div>` : ""}
     <div class="a-actions">${j.audio_base64 ? `<button class="btn primary replay">${icon("send")}Play answer</button>` : ""}</div>
-    <div class="quickfacts">
-      <div class="qf"><b><em data-cu="${(ev.weather && ev.weather.rain_last_7_days_mm) || 0}">0</em> mm</b><span>Rain · 7 days</span></div>
+    ${hasQuickfacts ? `<div class="quickfacts">
+      ${rainMm != null ? `<div class="qf"><b><em data-cu="${rainMm}">0</em> mm</b><span>Rain · 7 days</span></div>` : ""}
       ${t ? `<div class="qf"><b>₹<em data-cu="${t.latest_avg}">0</em> ${pct}</b><span>Latest price</span><div class="spark">${bigSpark(ev.price_rows)}</div></div>` : ""}
       ${msp ? `<div class="qf"><b>₹<em data-cu="${msp.msp_per_quintal}">0</em></b><span>MSP ${esc(msp.marketing_year)}</span></div>` : ""}
-    </div>
-    <div class="sources">
+    </div>` : ""}
+    ${rows.length ? `<div class="sources">
       <div class="sources-h">Sources</div>
       ${rows.map(r => `<div class="srow ${r.warn ? "warn" : ""}"><div class="sic">${icon(r.ic)}</div>
         <div><div class="stext">${r.text}</div><div class="ssrc">${esc(r.src)}</div></div></div>`).join("")}
-    </div>
+    </div>` : ""}
     <details class="rawtoggle"><summary>${icon("chevron-right", "chev")}View raw evidence data</summary>
       <pre>${esc(JSON.stringify(ev, null, 2))}</pre></details>
     <div class="send-row"><label>Send to WhatsApp</label>

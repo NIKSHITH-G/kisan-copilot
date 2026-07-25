@@ -117,15 +117,21 @@ def detect_crop_words(question):
 
 def extract_entities(session, question):
     """One COMPLETE call pulls district/crop/language out of the raw message
-    (any Indian language/script) — no UI field needed."""
+    (any Indian language/script) — no UI field needed. Also flags whether the
+    message is an actual farming question at all, so a bare greeting doesn't
+    get dressed up as a confident, data-backed answer to nothing."""
     prompt = ("Extract from this farmer message, which may be in Telugu, Hindi, "
               "English or any Indian language: (1) the Indian district or city "
               "mentioned, English spelling, empty string if none is mentioned; "
               "(2) the crop or commodity mentioned, common English name, empty "
               "if none; (3) the language of the message as one English word "
-              "(Telugu, Hindi, English, Tamil, ...).\n"
+              "(Telugu, Hindi, English, Tamil, ...); (4) is_question: true if this "
+              "is an actual farming question or request (irrigation, selling, "
+              "price, pests, fertilizer, crop stage, weather, etc.), false if it "
+              "is only a greeting, small talk, or has no real farming content.\n"
               "Message: " + question + "\n"
-              'Respond with STRICT JSON only: {"district": "", "crop": "", "language": ""}')
+              'Respond with STRICT JSON only: {"district": "", "crop": "", '
+              '"language": "", "is_question": true}')
     raw = session.sql("SELECT SNOWFLAKE.CORTEX.COMPLETE(?, ?)",
                       params=[MODEL, prompt]).collect()[0][0].strip()
     if raw.startswith("```"):
@@ -134,9 +140,10 @@ def extract_entities(session, question):
         d = json.loads(raw)
         return (str(d.get("district") or "").strip().title(),
                 str(d.get("crop") or "").strip(),
-                str(d.get("language") or "").strip().title())
+                str(d.get("language") or "").strip().title(),
+                bool(d.get("is_question", True)))
     except Exception:
-        return "", "", ""
+        return "", "", "", True
 
 
 def main(session, district_name, crop_name, question, language):
@@ -156,12 +163,25 @@ def main(session, district_name, crop_name, question, language):
     language = (language or "").strip().title()
 
     msg_crop = detect_crop_words(question)
-    ex_district, ex_crop, ex_language = extract_entities(session, question)
+    ex_district, ex_crop, ex_language, is_question = extract_entities(session, question)
     mark("extract_entities")
     district = ex_district or default_district
     crop = msg_crop or ex_crop or default_crop
     if language in ("", "Auto"):
         language = ex_language or "English"
+
+    if not is_question and not msg_crop and not ex_crop and not ex_district:
+        # Greeting / small talk / no real farming content — don't dress up
+        # nothing as a confident, data-backed answer. Ask what they need
+        # instead of running the full weather/price/compose pipeline.
+        clarify = ("Hi! I can help with irrigation, selling, prices, pests or "
+                   "fertilizer for your crop. Try asking something like "
+                   "'should I water my cotton' or 'what's the chilli price in "
+                   "Khammam'.")
+        mark("greeting_shortcircuit")
+        return {"district": district, "crop": crop, "language": language,
+                "spoken": clarify, "english": clarify,
+                "model": None, "evidence": {"_timings": timings}}
 
     fallback_note = None
     if not district:
