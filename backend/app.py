@@ -273,6 +273,150 @@ def snapshot(district: str = "Warangal"):
     return _cached(("snapshot", district.lower()), 120, run)
 
 
+# Same crop -> commodity match patterns as data/setup_answer_farmer.sql's
+# SYNONYMS (kept in sync manually — the SQL side is the trust-critical path
+# for /ask_text; this is a fully deterministic, no-LLM, glanceable summary).
+_CROP_PATTERNS = [
+    (("cotton", "kapas"), ["%cotton%"]),
+    (("paddy", "rice", "dhan"), ["%paddy%", "%rice%"]),
+    (("chilli", "chili"), ["%chilli%", "%chili%"]),
+    (("maize", "corn"), ["%maize%", "%corn%"]),
+    (("onion",), ["%onion%"]),
+    (("tomato",), ["%tomato%"]),
+    (("potato",), ["%potato%"]),
+    (("groundnut", "peanut"), ["%groundnut%", "%ground nut%"]),
+    (("red gram", "redgram", "tur", "arhar", "pigeon"), ["%arhar%", "%tur%", "%red gram%", "%pigeon%"]),
+    (("soybean", "soya", "soy"), ["%soy%"]),
+    (("wheat",), ["%wheat%"]),
+]
+
+
+def _patterns_for(crop: str):
+    c = (crop or "").lower()
+    for words, pats in _CROP_PATTERNS:
+        if any(w in c for w in words):
+            return pats
+    return [f"%{c.strip()}%"] if c.strip() else ["%"]
+
+
+def _price_query(pats, extra_where, binds):
+    ors = " OR ".join(["commodity ILIKE %s"] * len(pats))
+    sql = f"""SELECT market, district, state, commodity, variety, modal_price,
+                     TO_CHAR(arrival_date) arrival_date
+              FROM AGRI.PUBLIC.MANDI_PRICES
+              WHERE ({ors}) {extra_where}
+                AND arrival_date >= CURRENT_DATE - 14
+              ORDER BY arrival_date DESC, modal_price DESC LIMIT 50"""
+    return snowflake_client.query(sql, tuple(pats) + tuple(binds))
+
+
+def _briefing_hints(weather, stage, tier, prices, trend, msp, crop, district):
+    """Plain, direct sentences — this never goes through an LLM, so there
+    are no internal labels to strip and no risk of the compose step
+    leaking WET:/RISING:-style tags (the bug fixed earlier this session)."""
+    rain7 = _num(weather.get("rain_last_7_days_mm")) or 0
+    fc = weather.get("forecast_7_days") or []
+    rain_next2 = round(sum(_num(d.get("rain_mm")) or 0 for d in fc[:2]), 1)
+    need_high = any((s.get("water_need") or "").lower() == "high" for s in stage)
+    if rain7 >= 20 or rain_next2 >= 10:
+        irrigation = (f"Don't irrigate — {rain7}mm fell this week and {rain_next2}mm more "
+                      f"is forecast in the next 2 days. Drain any standing water.")
+    elif rain7 < 5 and need_high:
+        irrigation = (f"Irrigate soon — only {rain7}mm fell this week and your crop is in "
+                      f"a high water-need stage. Light watering, avoid standing water.")
+    else:
+        irrigation = f"{rain7}mm fell this week — irrigate only if the soil feels dry at root depth."
+
+    if tier != "district" or not trend:
+        if prices:
+            top = prices[0]
+            sell = (f"No mandi data for {crop} in {district} yet — nearest reporting: "
+                    f"{top['market']}, {top['state']}, Rs {_num(top['modal_price']):.0f}/quintal "
+                    f"on {top['arrival_date']} (not local).")
+        else:
+            sell = f"No mandi data reporting for {crop} anywhere in the last 14 days."
+    else:
+        pct = (round(100 * (trend["latest_avg"] - trend["prior_avg"]) / trend["prior_avg"], 1)
+               if trend["prior_avg"] else 0)
+        if pct > 1:
+            sell = f"Prices are rising — Rs {trend['latest_avg']:.0f}, up {pct}% from last week. Hold or sell in stages."
+        elif pct < -1:
+            sell = f"Prices are falling — Rs {trend['latest_avg']:.0f}, down {abs(pct)}% from last week. Selling sooner may be better."
+        else:
+            sell = f"Prices are steady around Rs {trend['latest_avg']:.0f}. Sell as per your cash need."
+        if msp:
+            best_msp = max(_num(m["msp_per_quintal"]) for m in msp)
+            if trend["latest_avg"] < best_msp:
+                sell += f" Market is below MSP Rs {best_msp:.0f} — government procurement is a floor option."
+
+    hum = (weather.get("today") or {}).get("humidity")
+    pest = (f"Humidity is {hum}% — check leaf undersides on a few plants daily for early signs of pests."
+            if hum is not None else "Check leaf undersides on a few plants daily for early signs of pests.")
+
+    return {"irrigation": irrigation, "sell": sell, "pest": pest}
+
+
+@app.get("/briefing")
+def briefing(district: str = "Warangal", crop: str = "cotton"):
+    """Proactive daily plan for Field Mode — the same deterministic
+    thresholds ANSWER_FARMER uses, computed directly with no LLM call so
+    it's instant and doesn't need the farmer to ask anything."""
+    district = district or "Warangal"
+    crop = crop or "cotton"
+
+    def run():
+        wx_row = snowflake_client.query(
+            "CALL AGRI.PUBLIC.GET_DISTRICT_WEATHER(%s)", (district,))[0]
+        weather = json.loads(list(wx_row.values())[0])
+        resolved_district = district
+        if "error" in weather:
+            wx_row = snowflake_client.query(
+                "CALL AGRI.PUBLIC.GET_DISTRICT_WEATHER(%s)", ("Warangal",))[0]
+            weather = json.loads(list(wx_row.values())[0])
+            resolved_district = "Warangal"
+        state = (weather.get("resolved_as") or "").split(",")[-1].strip()
+
+        stage = snowflake_client.query(
+            """SELECT stage, water_need, notes FROM AGRI.PUBLIC.CROP_CALENDAR
+               WHERE crop ILIKE %s
+                 AND ((stage_start_month <= stage_end_month
+                       AND MONTH(CURRENT_DATE) BETWEEN stage_start_month AND stage_end_month)
+                   OR (stage_start_month > stage_end_month
+                       AND (MONTH(CURRENT_DATE) >= stage_start_month
+                            OR MONTH(CURRENT_DATE) <= stage_end_month)))""",
+            (f"%{crop}%",))
+
+        pats = _patterns_for(crop)
+        tier, prices = "district", _price_query(pats, "AND district ILIKE %s", [f"%{resolved_district}%"])
+        if not prices and state:
+            tier, prices = "state", _price_query(pats, "AND state ILIKE %s", [f"%{state}%"])
+        if not prices:
+            tier, prices = "all_india", _price_query(pats, "", [])
+
+        trend = None
+        if prices:
+            latest_date = prices[0]["arrival_date"]
+            latest = [_num(p["modal_price"]) for p in prices if p["arrival_date"] == latest_date]
+            prior = [_num(p["modal_price"]) for p in prices if p["arrival_date"] != latest_date]
+            if latest and prior:
+                trend = {"latest_avg": round(sum(latest) / len(latest)),
+                         "prior_avg": round(sum(prior) / len(prior))}
+
+        ors = " OR ".join(["commodity ILIKE %s"] * len(pats))
+        msp = snowflake_client.query(
+            f"SELECT commodity, variety_note, marketing_year, msp_per_quintal "
+            f"FROM AGRI.PUBLIC.MSP WHERE {ors}", tuple(pats))
+
+        hints = _briefing_hints(weather, stage, tier, prices, trend, msp, crop, resolved_district)
+
+        return {"district": resolved_district, "crop": crop, "hints": hints,
+                "price_tier_used": tier, "price_trend": trend,
+                "price_rows": [{**p, "modal_price": _num(p["modal_price"])} for p in prices[:8]],
+                "forecast_7_days": weather.get("forecast_7_days") or [],
+                "crop_stage": stage[0] if stage else None}
+    return _cached(("briefing", district.lower(), crop.lower()), 600, run)
+
+
 class SendBody(BaseModel):
     to: str
     text: str
