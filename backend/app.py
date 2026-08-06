@@ -242,11 +242,16 @@ def snapshot(district: str = "Warangal"):
             """SELECT commodity, market, modal_price, TO_CHAR(arrival_date) AS d
                FROM AGRI.PUBLIC.MANDI_PRICES WHERE district ILIKE %s
                ORDER BY arrival_date DESC, modal_price DESC LIMIT 3""", (f"%{district}%",))
-        stats = snowflake_client.query(
-            "SELECT COUNT(*) AS n_rows, COUNT(DISTINCT state) AS states, "
-            "TO_CHAR(MAX(arrival_date)) AS latest FROM AGRI.PUBLIC.MANDI_PRICES")[0]
-        log = snowflake_client.query(
-            "SELECT TO_CHAR(MAX(run_at)) AS run_at FROM AGRI.PUBLIC.REFRESH_LOG")
+        # Combined into one round trip (was 2 separate queries) — each
+        # Snowflake round trip has fixed dispatch overhead on top of the
+        # query itself, and this endpoint's cold-start latency (~7s
+        # uncached) was directly visible as the empty live-ticker pill
+        # sitting there before it had anything to show.
+        agg = snowflake_client.query(
+            "SELECT s.n_rows, s.states, s.latest, l.run_at FROM "
+            "(SELECT COUNT(*) AS n_rows, COUNT(DISTINCT state) AS states, "
+            " TO_CHAR(MAX(arrival_date)) AS latest FROM AGRI.PUBLIC.MANDI_PRICES) s "
+            "CROSS JOIN (SELECT TO_CHAR(MAX(run_at)) AS run_at FROM AGRI.PUBLIC.REFRESH_LOG) l")[0]
         return {"district": district,
                 "ticker": [{**t, "modal_price": _num(t["modal_price"])} for t in ticker],
                 "weather": [{**w, "rainfall_mm": _num(w["rainfall_mm"]),
@@ -254,9 +259,9 @@ def snapshot(district: str = "Warangal"):
                              "temp_max": _num(w["temp_max"])} for w in weather],
                 "rain_7d": round(sum(_num(w["rainfall_mm"]) or 0 for w in weather), 1),
                 "local_prices": [{**p, "modal_price": _num(p["modal_price"])} for p in local],
-                "stats": {"rows": int(stats["n_rows"]), "states": int(stats["states"]),
-                          "latest_arrival": stats["latest"]},
-                "last_refresh": (log[0]["run_at"] if log else None)}
+                "stats": {"rows": int(agg["n_rows"]), "states": int(agg["states"]),
+                          "latest_arrival": agg["latest"]},
+                "last_refresh": agg["run_at"]}
     return _cached(("snapshot", district.lower()), 120, run)
 
 

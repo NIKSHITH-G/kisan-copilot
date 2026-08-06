@@ -212,10 +212,10 @@
   .ask-hero h1 em { font-style:normal; color:var(--terracotta); }
   .ask-hero p { color:var(--ink-2); font-size:.96rem; margin-top:.65rem; max-width:520px;
                 animation:riseIn .5s cubic-bezier(.16,1,.3,1) .05s backwards; }
-  .live-line { margin-top:1.6rem; font-size:.8rem; color:var(--ink-2); display:flex; align-items:center;
-               animation:riseIn .5s cubic-bezier(.16,1,.3,1) .1s backwards;
+  .live-line { display:none; margin-top:1.6rem; font-size:.8rem; color:var(--ink-2); align-items:center;
                gap:.45rem; flex-wrap:wrap; justify-content:center; background:var(--panel-bg); border:1px solid var(--border-soft);
                padding:.5rem 1rem; border-radius:var(--r-pill); box-shadow:var(--shadow-sm); }
+  .live-line.on { display:flex; animation:riseIn .4s cubic-bezier(.16,1,.3,1); }
   .live-line .dot { width:6px; height:6px; border-radius:50%; background:var(--accent); animation:blink 1.6s infinite; }
   @keyframes blink { 50% { opacity:.3; } }
   .live-line b { color:var(--ink); font-weight:800; }
@@ -801,6 +801,7 @@ function loadSnapshot() {
         s.local_prices.slice(0, 3).map(p => `<b>${esc(p.commodity)} ₹${fmt(p.modal_price)}</b>`).join(" · ") +
         (s.local_prices.length ? "" : top3.map(t => `<b>${esc(t.commodity)} ₹${fmt(t.modal_price)}</b>`).join(" · "))
       : "";
+    $("liveline").classList.toggle("on", top3.length > 0);
     const st = `<div class="gi"><span>Price rows</span><b class="num">${fmt(s.stats.rows)}</b></div>
       <div class="gi"><span>States</span><b class="num">${s.stats.states}</b></div>
       <div class="gi"><span>Latest arrivals</span><b class="num" style="color:var(--accent)">${s.stats.latest_arrival ? s.stats.latest_arrival.slice(5) : "—"}</b></div>
@@ -818,7 +819,7 @@ function loadSnapshot() {
         <div class="v">₹<em data-cu="${s.local_prices[0].modal_price}">0</em>/qtl</div><div class="s">${esc(s.local_prices[0].market)} · ${s.local_prices[0].d}</div></div>` : ""}`;
     runCountUps($("fnums"));
     loadFieldExtra();
-  }).catch(() => { $("liveline").textContent = "backend offline"; });
+  }).catch(() => { $("liveline").textContent = "backend offline"; $("liveline").classList.add("on"); });
 }
 loadSnapshot();
 
