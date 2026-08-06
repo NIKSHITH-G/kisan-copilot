@@ -12,6 +12,7 @@ Run: .venv/bin/uvicorn backend.app:app --port 8400
 """
 
 import base64
+import json
 import os
 import sys
 from pathlib import Path
@@ -234,10 +235,17 @@ def snapshot(district: str = "Warangal"):
             QUALIFY ROW_NUMBER() OVER (PARTITION BY SPLIT_PART(commodity,'(',1)
                                        ORDER BY arrival_date DESC, modal_price DESC) = 1
             ORDER BY d DESC LIMIT 5""")
-        weather = snowflake_client.query(
-            """SELECT TO_CHAR(date) AS d, temp_max, temp_min, rainfall_mm, humidity
-               FROM AGRI.PUBLIC.WEATHER WHERE district ILIKE %s
-               ORDER BY date DESC LIMIT 7""", (f"%{district}%",))
+        # On-demand (cached) rather than reading WEATHER directly — a district
+        # nobody has ever asked about has zero rows there, which silently
+        # rendered as "0mm rain" instead of showing there's just no data yet.
+        wx_row = snowflake_client.query(
+            "CALL AGRI.PUBLIC.GET_DISTRICT_WEATHER(%s)", (district,))[0]
+        wx = json.loads(list(wx_row.values())[0])
+        today = wx.get("today") or {}
+        weather = [{"d": today.get("date"), "temp_max": today.get("temp_max"),
+                    "temp_min": today.get("temp_min"), "rainfall_mm": today.get("rain_mm"),
+                    "humidity": today.get("humidity")}] if today else []
+        rain_7d_live = wx.get("rain_last_7_days_mm")
         local = snowflake_client.query(
             """SELECT commodity, market, modal_price, TO_CHAR(arrival_date) AS d
                FROM AGRI.PUBLIC.MANDI_PRICES WHERE district ILIKE %s
@@ -257,7 +265,7 @@ def snapshot(district: str = "Warangal"):
                 "weather": [{**w, "rainfall_mm": _num(w["rainfall_mm"]),
                              "humidity": _num(w["humidity"]),
                              "temp_max": _num(w["temp_max"])} for w in weather],
-                "rain_7d": round(sum(_num(w["rainfall_mm"]) or 0 for w in weather), 1),
+                "rain_7d": _num(rain_7d_live) or 0,
                 "local_prices": [{**p, "modal_price": _num(p["modal_price"])} for p in local],
                 "stats": {"rows": int(agg["n_rows"]), "states": int(agg["states"]),
                           "latest_arrival": agg["latest"]},
